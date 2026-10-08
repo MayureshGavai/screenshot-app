@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import { platform } from "node:process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,7 +12,7 @@ const createWindow = () => {
     height: 600,
 
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -19,6 +20,10 @@ const createWindow = () => {
 
   mainWindow.loadURL("http://localhost:5173");
 };
+
+ipcMain.handle("get-platform", () => {
+  return platform;
+});
 
 app.whenReady().then(() => {
   createWindow();
