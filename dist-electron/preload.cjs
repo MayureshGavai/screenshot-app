@@ -4,4 +4,5 @@ const electron_1 = require("electron");
 electron_1.contextBridge.exposeInMainWorld("electronAPI", {
     appName: "Screenshot App",
     getPlatform: () => electron_1.ipcRenderer.invoke("get-platform"),
+    getScreenSources: () => electron_1.ipcRenderer.invoke("get-screen-sources"),
 });

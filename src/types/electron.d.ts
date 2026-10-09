@@ -5,6 +5,12 @@ declare global {
     electronAPI: {
       appName: string;
       getPlatform: () => Promise<string>;
+      getScreenSources: () => Promise<
+        {
+          id: string;
+          name: string;
+        }[]
+      >;
     };
   }
 }
