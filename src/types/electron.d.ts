@@ -11,6 +11,7 @@ declare global {
           name: string;
         }[]
       >;
+      getDesktopSourceId: () => Promise<string>;
     };
   }
 }

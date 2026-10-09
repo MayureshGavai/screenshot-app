@@ -32,6 +32,17 @@ ipcMain.handle("get-screen-sources", async () => {
         name: source.name,
     }));
 });
+ipcMain.handle("get-desktop-source-id", async () => {
+    const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+    });
+    console.log("sources>>>>", sources);
+    const primaryScreenSource = sources.find((source) => source.name === "Entire screen");
+    if (!primaryScreenSource) {
+        throw new Error("No screen source was found");
+    }
+    return primaryScreenSource.id;
+});
 app.whenReady().then(() => {
     createWindow();
 });
