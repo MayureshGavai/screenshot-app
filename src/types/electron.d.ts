@@ -15,6 +15,8 @@ declare global {
       saveScreenshot: (
         dataUrl: string,
       ) => Promise<{ canceled: true } | { canceled: false; filePath: string }>;
+      hideWindow: () => Promise<void>;
+      showWindow: () => Promise<void>;
     };
   }
 }

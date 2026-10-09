@@ -1,18 +1,22 @@
 export const captureScreen = async (): Promise<string> => {
-  const sourceId = await window.electronAPI.getDesktopSourceId();
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      // @ts-expect-error Electron/Chromium-specific constraint
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: sourceId,
-      },
-    },
-  });
+  let stream: MediaStream | undefined;
+  await window.electronAPI.hideWindow();
 
   try {
+    await new Promise<void>((resolve) => setTimeout(resolve, 400));
+
+    const sourceId = await window.electronAPI.getDesktopSourceId();
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        // @ts-expect-error Electron/Chromium-specific constraint
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: sourceId,
+        },
+      },
+    });
     const video = document.createElement("video");
     ((video.muted = true), (video.srcObject = stream));
 
@@ -23,11 +27,20 @@ export const captureScreen = async (): Promise<string> => {
 
     await video.play();
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for a captured video frame."));
+      }, 3000);
+
+      const finish = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
       if (video.requestVideoFrameCallback) {
-        video.requestVideoFrameCallback(() => resolve());
+        video.requestVideoFrameCallback(() => finish());
       } else {
-        requestAnimationFrame(() => resolve());
+        requestAnimationFrame(() => finish());
       }
     });
 
@@ -49,6 +62,7 @@ export const captureScreen = async (): Promise<string> => {
 
     return canvas.toDataURL("image/png");
   } finally {
-    stream.getTracks().forEach((track) => track.stop());
+    stream?.getTracks().forEach((track) => track.stop());
+    await window.electronAPI.showWindow();
   }
 };

@@ -13,6 +13,7 @@ const createWindow = () => {
             preload: path.join(__dirname, "preload.cjs"),
             contextIsolation: true,
             nodeIntegration: false,
+            backgroundThrottling: false,
         },
     });
     mainWindow.loadURL("http://localhost:5173");
@@ -67,6 +68,22 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl) => {
         canceled: false,
         filePath,
     };
+});
+ipcMain.handle("hide-window", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed()) {
+        throw new Error("Application window unavailable");
+    }
+    window.hide();
+});
+ipcMain.handle("show-window", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    console.log("show-window IPC received");
+    if (!window || window.isDestroyed()) {
+        return;
+    }
+    window.show();
+    console.log("Window restored");
 });
 app.whenReady().then(() => {
     createWindow();

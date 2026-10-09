@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDesktopSourceId: () => ipcRenderer.invoke("get-desktop-source-id"),
   saveScreenshot: (dataUrl: string) =>
     ipcRenderer.invoke("save-screenshot", dataUrl),
+  hideWindow: () => ipcRenderer.invoke("hide-window"),
+  showWindow: () => ipcRenderer.invoke("show-window"),
 });

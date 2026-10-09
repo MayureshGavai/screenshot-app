@@ -7,4 +7,6 @@ electron_1.contextBridge.exposeInMainWorld("electronAPI", {
     getScreenSources: () => electron_1.ipcRenderer.invoke("get-screen-sources"),
     getDesktopSourceId: () => electron_1.ipcRenderer.invoke("get-desktop-source-id"),
     saveScreenshot: (dataUrl) => electron_1.ipcRenderer.invoke("save-screenshot", dataUrl),
+    hideWindow: () => electron_1.ipcRenderer.invoke("hide-window"),
+    showWindow: () => electron_1.ipcRenderer.invoke("show-window"),
 });
