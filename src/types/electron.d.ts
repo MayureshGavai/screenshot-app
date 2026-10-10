@@ -12,6 +12,9 @@ declare global {
         }[]
       >;
       getDesktopSourceId: () => Promise<string>;
+      saveScreenshot: (
+        dataUrl: string,
+      ) => Promise<{ canceled: true } | { canceled: false; filePath: string }>;
     };
   }
 }

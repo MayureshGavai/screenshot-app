@@ -1,4 +1,5 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain } from "electron";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { platform } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -36,12 +37,36 @@ ipcMain.handle("get-desktop-source-id", async () => {
     const sources = await desktopCapturer.getSources({
         types: ["screen"],
     });
-    console.log("sources>>>>", sources);
     const primaryScreenSource = sources.find((source) => source.name === "Entire screen");
     if (!primaryScreenSource) {
         throw new Error("No screen source was found");
     }
     return primaryScreenSource.id;
+});
+ipcMain.handle("save-screenshot", async (_event, dataUrl) => {
+    if (typeof dataUrl !== "string") {
+        throw new Error("Invalid screenshot data");
+    }
+    const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+    if (!match) {
+        throw new Error("The screenshot must be valid PNG data url");
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const { canceled, filePath } = await dialog.showSaveDialog({
+        title: "Save screenshot",
+        buttonLabel: "Save Screenshot",
+        defaultPath: path.join(app.getPath("pictures"), `screenshot-${timestamp}.png`),
+        filters: [{ name: "PNG Image", extensions: ["png"] }],
+    });
+    if (canceled || !filePath) {
+        return { canceled: true };
+    }
+    const imageBuffer = Buffer.from(match[1], "base64");
+    await writeFile(filePath, imageBuffer);
+    return {
+        canceled: false,
+        filePath,
+    };
 });
 app.whenReady().then(() => {
     createWindow();
