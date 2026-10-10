@@ -11,30 +11,50 @@ const App = () => {
   const [sources, setSources] = useState<ScreenSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [screenshot, setScreenshot] = useState<string | null>(null);
-  const [isCapturing, setIsCatpuring] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [isLoadingSources, setIsLoadingSources] = useState(true);
+  const [isRefreshingSources, setIsRefreshingSources] = useState(false);
 
-  useEffect(() => {
-    const loadSources = async () => {
-      try {
-        const availableSources = await window.electronAPI.getScreenSources();
-        setSources(availableSources);
-        const defaultScreen = availableSources.find((source) =>
+  const loadSources = async (isRefesh = false) => {
+    if (isRefesh) {
+      setIsRefreshingSources(true);
+    } else {
+      setIsLoadingSources(true);
+    }
+
+    try {
+      const availableSources = await window.electronAPI.getScreenSources();
+      const filteredSources = availableSources.filter(
+        (source) => source.name.toLowerCase() !== "screenshot-app",
+      );
+
+      setSources(filteredSources);
+      setSelectedSourceId((currentId) => {
+        if (filteredSources.some((source) => source.id === currentId)) {
+          return currentId;
+        }
+
+        const defaultScreen = filteredSources.find((source) =>
           source.name.toLowerCase().includes("entire screen"),
         );
-        setSelectedSourceId(defaultScreen?.id ?? availableSources[0]?.id ?? "");
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load available screens and windows",
-        );
-      } finally {
-        setIsLoadingSources(false);
-      }
-    };
+
+        return defaultScreen?.id ?? filteredSources[0]?.id ?? "";
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load available screens and windows",
+      );
+    } finally {
+      setIsLoadingSources(false);
+      setIsRefreshingSources(false);
+    }
+  };
+
+  useEffect(() => {
     void loadSources();
   }, []);
 
@@ -44,7 +64,7 @@ const App = () => {
       return;
     }
 
-    setIsCatpuring(true);
+    setIsCapturing(true);
     setError(null);
     setSaveMessage("");
 
@@ -56,7 +76,7 @@ const App = () => {
         err instanceof Error ? err.message : "Failed to capture the screen",
       );
     } finally {
-      setIsCatpuring(false);
+      setIsCapturing(false);
     }
   };
 
@@ -83,35 +103,55 @@ const App = () => {
       <h1 className="text-center text-2xl font-bold">Screenshot app</h1>
       <p className="mt-1">Capture entire screen or an individual window</p>
       {/* <section className="mt-5"> */}
+      <button
+        type="button"
+        onClick={() => void loadSources(true)}
+        disabled={isLoadingSources || isRefreshingSources || isCapturing}
+        className="mb-3 disabled:opacity-50  hover:underline cursor-pointer"
+      >
+        {isRefreshingSources ? "Refreshing..." : "Refresh sources"}
+      </button>
       <label htmlFor="source" className="mb-2 block font-medium">
         Select screen or window
       </label>
       <div className="flex flex-wrap gap-4">
         {isLoadingSources && <p>Loading available sources...</p>}
+        {sources.map((source) => {
+          const isSelected = selectedSourceId === source.id;
 
-        {sources.length > 0 &&
-          sources.map((source) => (
-            <div
+          return (
+            <button
               key={source.id}
-              onClick={() => setSelectedSourceId(source.id)}
-              className={`mt-3 flex w-56 cursor-pointer flex-col gap-2 rounded-lg p-2
-                ${
-                  selectedSourceId === source.id
-                    ? "ring-4 ring-green-500 ring-offset-2"
-                    : "ring-1 ring-transparent hover:ring-green-500"
-                }`}
+              type="button"
+              onClick={() => {
+                if (isCapturing) return;
+
+                setSelectedSourceId(source.id);
+                setError(null);
+              }}
+              disabled={isCapturing}
+              aria-pressed={isSelected}
+              className={`mt-3 flex w-56 cursor-pointer flex-col gap-2
+        rounded-lg p-2 text-left
+        disabled:cursor-not-allowed disabled:opacity-60
+        ${
+          isSelected
+            ? "ring-4 ring-green-500 ring-offset-2"
+            : "ring-1 ring-transparent hover:ring-green-500"
+        }`}
             >
               <img
                 src={source.thumbnail}
-                alt={source.name}
+                alt=""
                 className="h-32 w-full rounded-md border border-gray-300 object-contain"
               />
 
               <span className="truncate text-sm font-medium">
                 {source.name}
               </span>
-            </div>
-          ))}
+            </button>
+          );
+        })}
       </div>
       {/* <select
           id="source"
