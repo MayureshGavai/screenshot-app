@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 600,
+    width: 1200,
+    height: 900,
 
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -29,7 +29,7 @@ ipcMain.handle("get-platform", () => {
 
 ipcMain.handle("get-screen-sources", async () => {
   const sources = await desktopCapturer.getSources({
-    types: ["screen"],
+    types: ["screen", "window"],
     thumbnailSize: {
       width: 150,
       height: 150,
@@ -39,6 +39,7 @@ ipcMain.handle("get-screen-sources", async () => {
   return sources.map((source) => ({
     id: source.id,
     name: source.name,
+    thumbnail: source.thumbnail.toDataURL(),
   }));
 });
 

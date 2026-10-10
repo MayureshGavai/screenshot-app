@@ -9,6 +9,7 @@ declare global {
         {
           id: string;
           name: string;
+          thumbnail: string;
         }[]
       >;
       getDesktopSourceId: () => Promise<string>;
