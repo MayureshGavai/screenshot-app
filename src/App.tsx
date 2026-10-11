@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { captureScreen } from "./services/ScreenshotService";
 import RegionSelector from "./components/RegionSelector";
+import ScreenshotEditor, {
+  type RectangleAnnotation,
+} from "./components/ScreenshotEditor";
 
 type ScreenSource = {
   id: string;
@@ -21,6 +24,8 @@ const App = () => {
   const [originalScreenshot, setOriginalScreenshot] = useState<string | null>(
     null,
   );
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [annotations, setAnnotations] = useState<RectangleAnnotation[]>([]);
 
   const loadSources = async (isRefresh = false) => {
     setError(null);
@@ -281,12 +286,25 @@ const App = () => {
                   Reset Crop
                 </button>
                 <button
+                  type="button"
+                  onClick={() => setIsEditMode((current) => !current)}
+                  className="rounded-lg p-2 bg-blue-500 text-white disabled:opacity-50"
+                >
+                  {isEditMode ? "Close editor" : "Edit screenshot"}
+                </button>
+                <button
                   className="rounded-lg p-2 bg-green-500 text-white"
                   onClick={handleSave}
                 >
                   Save screenshot
                 </button>
               </div>
+              {isEditMode && (
+                <ScreenshotEditor
+                  image={screenshot}
+                  onAnnotationsChange={setAnnotations}
+                />
+              )}
             </>
           )}
           {isCropMode && (
