@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { captureScreen } from "./services/ScreenshotService";
+import RegionSelector from "./components/RegionSelector";
 
 type ScreenSource = {
   id: string;
@@ -16,9 +17,12 @@ const App = () => {
   const [saveMessage, setSaveMessage] = useState("");
   const [isLoadingSources, setIsLoadingSources] = useState(true);
   const [isRefreshingSources, setIsRefreshingSources] = useState(false);
+  const [isCropMode, setIsCropMode] = useState(false);
 
-  const loadSources = async (isRefesh = false) => {
-    if (isRefesh) {
+  const loadSources = async (isRefresh = false) => {
+    setError(null);
+
+    if (isRefresh) {
       setIsRefreshingSources(true);
     } else {
       setIsLoadingSources(true);
@@ -98,6 +102,77 @@ const App = () => {
     }
   };
 
+  const handleApplyCrop = async (region: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => {
+    if (!screenshot) return;
+    const image = new Image();
+
+    image.onload = () => {
+      const displayWidth = image.naturalWidth;
+      const displayHeight = image.naturalHeight;
+
+      const imageElement = document.querySelector(
+        '[alt="screenshot to crop"]',
+      ) as HTMLImageElement | null;
+      if (!imageElement) {
+        setError("Screenshot dimensions are invalid");
+        return;
+      }
+
+      const rect = imageElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        setError("Screenshot dimensions are invalid");
+        return;
+      }
+
+      const scaleX = displayWidth / rect.width;
+      const scaleY = displayHeight / rect.height;
+
+      const sourceX = Math.round(region.x * scaleX);
+      const sourceY = Math.round(region.y * scaleY);
+      const sourceWidth = Math.round(region.width * scaleX);
+      const sourceHeight = Math.round(region.height * scaleY);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = sourceWidth;
+      canvas.height = sourceHeight;
+
+      const context = canvas.getContext("2d");
+
+      if (!context || !sourceWidth || !sourceHeight) {
+        setError("Unable to create cropped image");
+        return;
+      }
+
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight,
+      );
+
+      setScreenshot(canvas.toDataURL("image/png"));
+      setIsCropMode(false);
+      setSaveMessage("");
+      setError(null);
+    };
+
+    image.onerror = () => {
+      setError("Failed to load the screenshot");
+    };
+
+    image.src = screenshot;
+  };
+
   return (
     <main className="p-6">
       <h1 className="text-center text-2xl font-bold">Screenshot app</h1>
@@ -124,12 +199,13 @@ const App = () => {
               key={source.id}
               type="button"
               onClick={() => {
-                if (isCapturing) return;
+                if (isCapturing || isRefreshingSources || isLoadingSources)
+                  return;
 
                 setSelectedSourceId(source.id);
                 setError(null);
               }}
-              disabled={isCapturing}
+              disabled={isCapturing || isRefreshingSources || isLoadingSources}
               aria-pressed={isSelected}
               className={`mt-3 flex w-56 cursor-pointer flex-col gap-2
         rounded-lg p-2 text-left
@@ -153,40 +229,6 @@ const App = () => {
           );
         })}
       </div>
-      {/* <select
-          id="source"
-          value={selectedSourceId}
-          onChange={(event) => setSelectedSourceId(event.target.value)}
-          disabled={isLoadingSources || isCapturing || sources.length === 0}
-          className="w-full rounded-lg border p-2"
-        >
-          {sources.length === 0 && (
-            <option value="">No source available</option>
-          )}
-          {sources.map((source) => (
-            <option key={source.id} value={source.id}>
-              {source.name}
-            </option>
-          ))}
-        </select>
-        {isLoadingSources && <p>Loading available sources...</p>}
-
-        {sources.length > 0 && selectedSourceId && (
-          <div className="mt-3">
-            <p className="mb-2 text-sm text-gray-600">
-              Selected source preview
-            </p>
-            <img
-              src={
-                sources.find((source) => source.id === selectedSourceId)
-                  ?.thumbnail
-              }
-              alt="Selected screen or window"
-              className="w-full max-w-sm rounded-lg border"
-            />
-          </div>
-        )}
-      </section> */}
       <button
         onClick={handleCapture}
         disabled={isCapturing || isLoadingSources || !selectedSourceId}
@@ -199,18 +241,39 @@ const App = () => {
       {screenshot && (
         <section className="mt-4 flex flex-col">
           <h2>Screenshot preview</h2>
-          <img
-            src={screenshot}
-            alt="captured screenshot"
-            className="block w-full max-w-250 h-auto rounded-lg border"
-          />
-          <button
-            className="mt-4 mx-auto rounded-lg p-2 bg-green-500 text-white"
-            onClick={handleSave}
-          >
-            Save screenshot
-          </button>
-          {saveMessage && <p>{saveMessage}</p>}
+          {!isCropMode && (
+            <>
+              <img
+                src={screenshot}
+                alt="Captured screenshot"
+                className="block h-auto w-full max-w-250 riunded-lg border"
+              />
+              <div className="mx-auto mt-4 flex flex-wrap justify-center gap-3">
+                <button
+                  type="button"
+                  className="rounded-lg bg-green-500 p-2 text-white"
+                  onClick={() => setIsCropMode(true)}
+                >
+                  Crop screenshot
+                </button>
+                <button
+                  className="rounded-lg p-2 bg-green-500 text-white"
+                  onClick={handleSave}
+                >
+                  Save screenshot
+                </button>
+              </div>
+            </>
+          )}
+          {isCropMode && (
+            <RegionSelector
+              image={screenshot}
+              onCancel={() => setIsCropMode(false)}
+              onApply={handleApplyCrop}
+            />
+          )}
+
+          {saveMessage && <p className="mt-2">{saveMessage}</p>}
         </section>
       )}
     </main>
