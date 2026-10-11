@@ -18,6 +18,9 @@ const App = () => {
   const [isLoadingSources, setIsLoadingSources] = useState(true);
   const [isRefreshingSources, setIsRefreshingSources] = useState(false);
   const [isCropMode, setIsCropMode] = useState(false);
+  const [originalScreenshot, setOriginalScreenshot] = useState<string | null>(
+    null,
+  );
 
   const loadSources = async (isRefresh = false) => {
     setError(null);
@@ -74,7 +77,10 @@ const App = () => {
 
     try {
       const image = await captureScreen(selectedSourceId);
+      setOriginalScreenshot(image);
       setScreenshot(image);
+      setIsCropMode(false);
+      setSaveMessage("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to capture the screen",
@@ -82,6 +88,14 @@ const App = () => {
     } finally {
       setIsCapturing(false);
     }
+  };
+
+  const handleResetCrop = () => {
+    if (!originalScreenshot) return;
+    setScreenshot(originalScreenshot);
+    setIsCropMode(false);
+    setSaveMessage("");
+    setError(null);
   };
 
   const handleSave = async () => {
@@ -255,6 +269,16 @@ const App = () => {
                   onClick={() => setIsCropMode(true)}
                 >
                   Crop screenshot
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg p-2 bg-green-500 text-white disabled:opacity-50"
+                  onClick={handleResetCrop}
+                  disabled={
+                    !originalScreenshot || screenshot === originalScreenshot
+                  }
+                >
+                  Reset Crop
                 </button>
                 <button
                   className="rounded-lg p-2 bg-green-500 text-white"
