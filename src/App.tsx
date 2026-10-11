@@ -121,6 +121,25 @@ const App = () => {
     }
   };
 
+  const handleSaveAnnotated = async (imageDataUrl: string) => {
+    setSaveMessage("");
+    try {
+      const result = await window.electronAPI.saveScreenshot(imageDataUrl);
+      if (result.canceled) {
+        setSaveMessage("Save cancelled");
+        return;
+      }
+
+      setSaveMessage(`Annoted screenshot saved to: ${result.filePath}`);
+    } catch (err) {
+      setSaveMessage(
+        err instanceof Error
+          ? err.message
+          : "Failed to save annoted screenshot",
+      );
+    }
+  };
+
   const handleApplyCrop = async (region: {
     x: number;
     y: number;
@@ -288,7 +307,7 @@ const App = () => {
                 <button
                   type="button"
                   onClick={() => setIsEditMode((current) => !current)}
-                  className="rounded-lg p-2 bg-blue-500 text-white disabled:opacity-50"
+                  className="rounded-lg p-2 bg-green-500 text-white disabled:opacity-50"
                 >
                   {isEditMode ? "Close editor" : "Edit screenshot"}
                 </button>
@@ -303,6 +322,7 @@ const App = () => {
                 <ScreenshotEditor
                   image={screenshot}
                   onAnnotationsChange={setAnnotations}
+                  onExport={handleSaveAnnotated}
                 />
               )}
             </>

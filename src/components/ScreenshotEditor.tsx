@@ -1,5 +1,12 @@
 import React, { useRef, useState, type PointerEvent } from "react";
 
+type ImageDimensions = {
+  displayWidth: number;
+  displayHeight: number;
+  naturalWidth: number;
+  naturalHeight: number;
+};
+
 export type RectangleAnnotation = {
   id: string;
   x: number;
@@ -12,6 +19,7 @@ export type RectangleAnnotation = {
 type ScreenshotEditorProps = {
   image: string;
   onAnnotationsChange: (annotations: RectangleAnnotation[]) => void;
+  onExport: (imageDataUrl: string) => void;
 };
 
 type Point = {
@@ -24,6 +32,7 @@ const MIN_SIZE = 3;
 const ScreenshotEditor = ({
   image,
   onAnnotationsChange,
+  onExport,
 }: ScreenshotEditorProps) => {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const startPoint = useRef<Point | null>(null);
@@ -93,11 +102,11 @@ const ScreenshotEditor = ({
       return;
     }
 
-    setAnnotations((current) => {
-      const next = [...current, draft];
-      onAnnotationsChange(next);
-      return next;
-    });
+    const nextAnnotations = [...annotations, draft];
+
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
+
     setDraft(null);
   };
 
@@ -108,11 +117,10 @@ const ScreenshotEditor = ({
   };
 
   const handleUndo = () => {
-    setAnnotations((current) => {
-      const next = current.slice(0, -1);
-      onAnnotationsChange(next);
-      return next;
-    });
+    const nextAnnotation = annotations.slice(0, -1);
+
+    setAnnotations(nextAnnotation);
+    onAnnotationsChange(nextAnnotation);
     setDraft(null);
   };
 
@@ -120,6 +128,88 @@ const ScreenshotEditor = ({
     setAnnotations([]);
     setDraft(null);
     onAnnotationsChange([]);
+  };
+
+  const getImageDimensions = (): ImageDimensions | null => {
+    const imageElement = imageRef.current;
+    if (
+      !imageElement ||
+      !imageElement.naturalWidth ||
+      !imageElement.naturalHeight
+    ) {
+      return null;
+    }
+
+    const rect = imageElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return null;
+    }
+    return {
+      displayWidth: rect.width,
+      displayHeight: rect.height,
+      naturalWidth: imageElement.naturalWidth,
+      naturalHeight: imageElement.naturalHeight,
+    };
+  };
+
+  const getExportAnnotations = () => {
+    const dimensions = getImageDimensions();
+    if (!dimensions) return [];
+
+    const scaleX = dimensions.naturalWidth / dimensions.displayWidth;
+    const scaleY = dimensions.naturalHeight / dimensions.displayHeight;
+    return annotations.map((annotation) => ({
+      ...annotation,
+      x: annotation.x * scaleX,
+      y: annotation.y * scaleY,
+      width: annotation.width * scaleX,
+      height: annotation.height * scaleY,
+    }));
+  };
+
+  const handleExport = () => {
+    const imageElement = imageRef.current;
+    if (
+      !imageElement ||
+      !imageElement.complete ||
+      !imageElement.naturalWidth ||
+      !imageElement.naturalHeight
+    )
+      return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = imageElement.naturalWidth;
+    canvas.height = imageElement.naturalHeight;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
+
+    const exportAnnotations = getExportAnnotations();
+
+    context.lineWidth = 2;
+    context.strokeStyle = "#ef4444";
+
+    exportAnnotations.forEach((annotation) => {
+      context.strokeStyle = annotation.color;
+      context.strokeRect(
+        annotation.x,
+        annotation.y,
+        annotation.width,
+        annotation.height,
+      );
+    });
+
+    const imageDataUrl = canvas.toDataURL("image/png");
+
+    console.log("Export image format", imageDataUrl.substring(0, 30));
+    console.log("Exported image size", imageDataUrl.length);
+    console.log("Exported image dimensions", {
+      width: canvas.width,
+      height: canvas.height,
+    });
+    onExport(imageDataUrl);
   };
 
   return (
@@ -147,6 +237,13 @@ const ScreenshotEditor = ({
             className="rounded-lg border px-3 py-2 disabled:opacity-50"
           >
             Clear
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="rounded-lg bg-green-500 px-3 py-2 text-white"
+          >
+            Export annotated image
           </button>
         </div>
       </div>
@@ -191,7 +288,7 @@ const ScreenshotEditor = ({
               y={draft.y}
               width={draft.width}
               height={draft.height}
-              fill="#ef444"
+              fill="#ef4444"
               fillOpacity={0.12}
               stroke={draft.color}
               strokeWidth={2}
