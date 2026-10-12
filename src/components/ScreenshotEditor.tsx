@@ -9,12 +9,13 @@ type ImageDimensions = {
 
 export type RectangleAnnotation = {
   id: string;
-  type: "rectangle" | "arrow";
+  type: "rectangle" | "arrow" | "text";
   x: number;
   y: number;
   width: number;
   height: number;
   color: string;
+  text?: string;
   startX?: number;
   startY?: number;
   endX?: number;
@@ -85,9 +86,10 @@ const ScreenshotEditor = ({
   const [annotations, setAnnotations] = useState<RectangleAnnotation[]>([]);
   const [draft, setDraft] = useState<RectangleAnnotation | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<"rectangle" | "arrow">(
-    "rectangle",
-  );
+  const [selectedTool, setSelectedTool] = useState<
+    "rectangle" | "arrow" | "text"
+  >("rectangle");
+  const [textInput, setTextInput] = useState("");
 
   const getPoint = (event: PointerEvent<HTMLDivElement>): Point | null => {
     const element = imageRef.current;
@@ -100,6 +102,33 @@ const ScreenshotEditor = ({
       x: Math.max(0, Math.min(event.clientX - rect.left, rect.width)),
       y: Math.max(0, Math.min(event.clientY - rect.top, rect.height)),
     };
+  };
+
+  const handlePlaceText = (event: PointerEvent<HTMLDivElement>) => {
+    if (selectedTool !== "text") return;
+    if (event.button !== 0) return;
+
+    const point = getPoint(event);
+    if (!point) return;
+
+    const text = textInput.trim();
+
+    if (!text) return;
+
+    const newAnnotation: RectangleAnnotation = {
+      id: crypto.randomUUID(),
+      type: "text",
+      x: point.x,
+      y: point.y,
+      width: 0,
+      height: 0,
+      color: "#ef4444",
+      text,
+    };
+
+    const nextAnnotations = [...annotations, newAnnotation];
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -333,8 +362,11 @@ const ScreenshotEditor = ({
         <div>
           <h2 className="text-xl font-semibold">Screenshot editor</h2>
           <p className="text-sm text-gray-600">
-            Click and drag over the image to draw red{" "}
-            {selectedTool === "rectangle" ? "rectangles" : "arrows"}.
+            {selectedTool === "text"
+              ? "Enter text above, then click on the image to place it."
+              : `Click and drag over the image to draw red ${
+                  selectedTool === "rectangle" ? "rectangles" : "arrows"
+                }.`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -354,6 +386,25 @@ const ScreenshotEditor = ({
           >
             Arrow
           </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedTool("text")}
+            aria-pressed={selectedTool === "text"}
+            className={`rounded-lg border px-3 py-2 ${selectedTool === "text" ? "border-green-500 text-green-700 bg-green-50" : ""}`}
+          >
+            Text
+          </button>
+          {selectedTool === "text" && (
+            <input
+              type="text"
+              value={textInput}
+              onChange={(event) => setTextInput(event.target.value)}
+              placeholder="Enter annotation text"
+              aria-label="annotation text"
+              className="rounded-lg border px-3 py-2"
+            />
+          )}
           <button
             type="button"
             onClick={handleUndo}
@@ -382,7 +433,13 @@ const ScreenshotEditor = ({
 
       <div
         className="relative inline-block max-w-full touch-none select-none overflow-hidden rounded-lg border"
-        onPointerDown={handlePointerDown}
+        onPointerDown={(event) => {
+          if (selectedTool === "text") {
+            handlePlaceText(event);
+            return;
+          }
+          handlePointerDown(event);
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
