@@ -9,11 +9,16 @@ type ImageDimensions = {
 
 export type RectangleAnnotation = {
   id: string;
+  type: "rectangle" | "arrow";
   x: number;
   y: number;
   width: number;
   height: number;
   color: string;
+  startX?: number;
+  startY?: number;
+  endX?: number;
+  endY?: number;
 };
 
 type ScreenshotEditorProps = {
@@ -29,6 +34,46 @@ type Point = {
 
 const MIN_SIZE = 3;
 
+type ArrowShapeProps = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  strokeWidth?: number;
+};
+
+const ArrowShape = ({
+  x1,
+  y1,
+  x2,
+  y2,
+  color,
+  strokeWidth = 2,
+}: ArrowShapeProps) => {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLength = 12;
+  const headAngle = Math.PI / 6;
+
+  const leftX = x2 - headLength * Math.cos(angle - headAngle);
+  const leftY = y2 - headLength * Math.sin(angle - headAngle);
+  const rightX = x2 - headLength * Math.cos(angle + headAngle);
+  const rightY = y2 - headLength * Math.sin(angle + headAngle);
+
+  return (
+    <g
+      fill="none"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1={x1} y1={y1} x2={x2} y2={y2} />
+      <polyline points={`${leftX},${leftY} ${x2},${y2} ${rightX},${rightY}`} />
+    </g>
+  );
+};
+
 const ScreenshotEditor = ({
   image,
   onAnnotationsChange,
@@ -40,6 +85,9 @@ const ScreenshotEditor = ({
   const [annotations, setAnnotations] = useState<RectangleAnnotation[]>([]);
   const [draft, setDraft] = useState<RectangleAnnotation | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<"rectangle" | "arrow">(
+    "rectangle",
+  );
 
   const getPoint = (event: PointerEvent<HTMLDivElement>): Point | null => {
     const element = imageRef.current;
@@ -65,11 +113,16 @@ const ScreenshotEditor = ({
     startPoint.current = point;
     setDraft({
       id: crypto.randomUUID(),
+      type: selectedTool,
       x: point.x,
       y: point.y,
       width: 0,
       height: 0,
       color: "#ef4444",
+      startX: point.x,
+      startY: point.y,
+      endX: point.x,
+      endY: point.y,
     });
     setIsDrawing(true);
   };
@@ -81,13 +134,21 @@ const ScreenshotEditor = ({
     const start = startPoint.current;
     setDraft((current) =>
       current
-        ? {
-            ...current,
-            x: Math.min(start.x, point.x),
-            y: Math.min(start.y, point.y),
-            width: Math.abs(point.x - start.x),
-            height: Math.abs(point.y - start.y),
-          }
+        ? current.type === "rectangle"
+          ? {
+              ...current,
+              x: Math.min(start.x, point.x),
+              y: Math.min(start.y, point.y),
+              width: Math.abs(point.x - start.x),
+              height: Math.abs(point.y - start.y),
+            }
+          : {
+              ...current,
+              startX: start.x,
+              startY: start.y,
+              endX: point.x,
+              endY: point.y,
+            }
         : null,
     );
   };
@@ -97,7 +158,20 @@ const ScreenshotEditor = ({
     setIsDrawing(false);
     startPoint.current = null;
 
-    if (!draft || draft.width < MIN_SIZE || draft.height < MIN_SIZE) {
+    if (!draft) {
+      setDraft(null);
+      return;
+    }
+
+    const isValidAnnotation =
+      draft.type === "rectangle"
+        ? draft.width >= MIN_SIZE && draft.height >= MIN_SIZE
+        : Math.hypot(
+            (draft.endX ?? draft.x) - (draft.startX ?? draft.x),
+            (draft.endY ?? draft.y) - (draft.startY ?? draft.y),
+          ) >= MIN_SIZE;
+
+    if (!isValidAnnotation) {
       setDraft(null);
       return;
     }
@@ -164,6 +238,18 @@ const ScreenshotEditor = ({
       y: annotation.y * scaleY,
       width: annotation.width * scaleX,
       height: annotation.height * scaleY,
+      startX:
+        annotation.startX === undefined
+          ? undefined
+          : annotation.startX * scaleX,
+      startY:
+        annotation.startY === undefined
+          ? undefined
+          : annotation.startY * scaleY,
+      endX:
+        annotation.endX === undefined ? undefined : annotation.endX * scaleX,
+      endY:
+        annotation.endY === undefined ? undefined : annotation.endY * scaleY,
     }));
   };
 
@@ -193,12 +279,41 @@ const ScreenshotEditor = ({
 
     exportAnnotations.forEach((annotation) => {
       context.strokeStyle = annotation.color;
-      context.strokeRect(
-        annotation.x,
-        annotation.y,
-        annotation.width,
-        annotation.height,
-      );
+      if (annotation.type === "rectangle") {
+        context.strokeRect(
+          annotation.x,
+          annotation.y,
+          annotation.width,
+          annotation.height,
+        );
+        return;
+      }
+
+      const startX = annotation.startX ?? annotation.x;
+      const startY = annotation.startY ?? annotation.y;
+      const endX = annotation.endX ?? annotation.x;
+      const endY = annotation.endY ?? annotation.y;
+
+      const angle = Math.atan2(endY - startY, endX - startX);
+      const headLength = 12;
+      const headAngle = Math.PI / 6;
+
+      const leftX = endX - headLength * Math.cos(angle - headAngle);
+      const leftY = endY - headLength * Math.sin(angle - headAngle);
+
+      const rightX = endX - headLength * Math.cos(angle + headAngle);
+      const rightY = endY - headLength * Math.sin(angle + headAngle);
+
+      context.beginPath();
+      context.moveTo(startX, startY);
+      context.lineTo(endX, endY);
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(leftX, leftY);
+      context.lineTo(endX, endY);
+      context.lineTo(rightX, rightY);
+      context.stroke();
     });
 
     const imageDataUrl = canvas.toDataURL("image/png");
@@ -218,10 +333,27 @@ const ScreenshotEditor = ({
         <div>
           <h2 className="text-xl font-semibold">Screenshot editor</h2>
           <p className="text-sm text-gray-600">
-            Click and drag over the image to draw red rectangles.
+            Click and drag over the image to draw red{" "}
+            {selectedTool === "rectangle" ? "rectangles" : "arrows"}.
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedTool("rectangle")}
+            aria-pressed={selectedTool === "rectangle"}
+            className={`rounded-lg border px-3 py-2 ${selectedTool === "rectangle" ? "border-green-500 text-green-700 bg-green-50" : ""}`}
+          >
+            Rectangle
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTool("arrow")}
+            aria-pressed={selectedTool === "arrow"}
+            className={`rounded-lg border px-3 py-2 ${selectedTool === "arrow" ? "border-green-500 text-green-700 bg-green-50" : ""}`}
+          >
+            Arrow
+          </button>
           <button
             type="button"
             onClick={handleUndo}
@@ -268,38 +400,58 @@ const ScreenshotEditor = ({
           viewBox={`0 0 ${imageRef.current?.clientWidth || 1} ${imageRef.current?.clientHeight || 1}`}
           preserveAspectRatio="none"
         >
-          {annotations.map((annotation) => (
-            <rect
-              key={annotation.id}
-              x={annotation.x}
-              y={annotation.y}
-              width={annotation.width}
-              height={annotation.height}
-              fill="none"
-              stroke={annotation.color}
-              strokeWidth={2}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-
-          {draft && (
-            <rect
-              x={draft.x}
-              y={draft.y}
-              width={draft.width}
-              height={draft.height}
-              fill="#ef4444"
-              fillOpacity={0.12}
-              stroke={draft.color}
-              strokeWidth={2}
-              strokeDasharray="6 3"
-              vectorEffect="non-scaling-stroke"
-            />
+          {annotations.map((annotation) =>
+            annotation.type === "rectangle" ? (
+              <rect
+                key={annotation.id}
+                x={annotation.x}
+                y={annotation.y}
+                width={annotation.width}
+                height={annotation.height}
+                fill="none"
+                stroke={annotation.color}
+                strokeWidth={2}
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : (
+              <ArrowShape
+                key={annotation.id}
+                x1={annotation.startX ?? annotation.x}
+                y1={annotation.startY ?? annotation.y}
+                x2={annotation.endX ?? annotation.x}
+                y2={annotation.endY ?? annotation.y}
+                color={annotation.color}
+              />
+            ),
           )}
+
+          {draft &&
+            (draft.type === "rectangle" ? (
+              <rect
+                x={draft.x}
+                y={draft.y}
+                width={draft.width}
+                height={draft.height}
+                fill="#ef4444"
+                fillOpacity={0.12}
+                stroke={draft.color}
+                strokeWidth={2}
+                strokeDasharray="6 3"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : (
+              <ArrowShape
+                x1={draft.startX ?? draft.x}
+                y1={draft.startY ?? draft.y}
+                x2={draft.endX ?? draft.x}
+                y2={draft.endY ?? draft.y}
+                color={draft.color}
+              />
+            ))}
         </svg>
       </div>
       <p className="mt-2 text-sm text-gray-600">
-        Rectangles: {annotations.length}
+        Annotations: {annotations.length}
       </p>
     </section>
   );
