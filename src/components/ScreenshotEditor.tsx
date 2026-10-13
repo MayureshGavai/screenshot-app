@@ -317,7 +317,6 @@ const ScreenshotEditor = ({
         );
         return;
       }
-
       const startX = annotation.startX ?? annotation.x;
       const startY = annotation.startY ?? annotation.y;
       const endX = annotation.endX ?? annotation.x;
@@ -457,30 +456,48 @@ const ScreenshotEditor = ({
           viewBox={`0 0 ${imageRef.current?.clientWidth || 1} ${imageRef.current?.clientHeight || 1}`}
           preserveAspectRatio="none"
         >
-          {annotations.map((annotation) =>
-            annotation.type === "rectangle" ? (
-              <rect
+          {annotations.map((annotation) => {
+            if (annotation.type === "rectangle") {
+              return (
+                <rect
+                  key={annotation.id}
+                  x={annotation.x}
+                  y={annotation.y}
+                  width={annotation.width}
+                  height={annotation.height}
+                  fill="none"
+                  stroke={annotation.color}
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            } else if (annotation.type === "arrow") {
+              return (
+                <ArrowShape
+                  key={annotation.id}
+                  x1={annotation.startX ?? annotation.x}
+                  y1={annotation.startY ?? annotation.y}
+                  x2={annotation.endX ?? annotation.x}
+                  y2={annotation.endY ?? annotation.y}
+                  color={annotation.color}
+                />
+              );
+            }
+
+            return (
+              <text
                 key={annotation.id}
                 x={annotation.x}
                 y={annotation.y}
-                width={annotation.width}
-                height={annotation.height}
-                fill="none"
-                stroke={annotation.color}
-                strokeWidth={2}
-                vectorEffect="non-scaling-stroke"
-              />
-            ) : (
-              <ArrowShape
-                key={annotation.id}
-                x1={annotation.startX ?? annotation.x}
-                y1={annotation.startY ?? annotation.y}
-                x2={annotation.endX ?? annotation.x}
-                y2={annotation.endY ?? annotation.y}
-                color={annotation.color}
-              />
-            ),
-          )}
+                fill={annotation.color}
+                fontSize={18}
+                fontWeight={500}
+                dominantBaseline="hanging"
+              >
+                {annotation.text}
+              </text>
+            );
+          })}
 
           {draft &&
             (draft.type === "rectangle" ? (
