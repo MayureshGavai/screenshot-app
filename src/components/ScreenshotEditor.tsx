@@ -87,6 +87,9 @@ const ScreenshotEditor = ({
   const [draft, setDraft] = useState<RectangleAnnotation | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [redoStack, setRedoStack] = useState<RectangleAnnotation[][]>([]);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<
+    string | null
+  >(null);
 
   const [selectedTool, setSelectedTool] = useState<
     "rectangle" | "arrow" | "text"
@@ -104,6 +107,86 @@ const ScreenshotEditor = ({
       x: Math.max(0, Math.min(event.clientX - rect.left, rect.width)),
       y: Math.max(0, Math.min(event.clientY - rect.top, rect.height)),
     };
+  };
+
+  const handleSelectedAnnotation = (id: string) => {
+    console.log("here>>>", id);
+    setSelectedAnnotationId(id);
+  };
+
+  const findAnnotationAtPoint = (point: Point): string | null => {
+    for (const annotation of [...annotations].reverse()) {
+      if (annotation.type === "rectangle") {
+        const tolerance = 8;
+
+        const nearLeft = Math.abs(point.x - annotation.x) <= tolerance;
+        const nearRight =
+          Math.abs(point.x - (annotation.x + annotation.width)) <= tolerance;
+        const nearTop = Math.abs(point.y - annotation.y) <= tolerance;
+        const nearBottom =
+          Math.abs(point.y - (annotation.y + annotation.height)) <= tolerance;
+
+        const withinHorizontal =
+          point.x >= annotation.x - tolerance &&
+          point.x <= annotation.x + annotation.width + tolerance;
+
+        const withinVertical =
+          point.y >= annotation.y - tolerance &&
+          point.y <= annotation.y + annotation.height + tolerance;
+
+        if (
+          (withinVertical && (nearLeft || nearRight)) ||
+          (withinHorizontal && (nearTop || nearBottom))
+        ) {
+          return annotation.id;
+        }
+      }
+
+      if (annotation.type === "arrow") {
+        const x1 = annotation.startX ?? annotation.x;
+        const y1 = annotation.startY ?? annotation.y;
+        const x2 = annotation.endX ?? annotation.x;
+        const y2 = annotation.endY ?? annotation.y;
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const lengthSquared = dx * dx + dy * dy;
+
+        const t =
+          lengthSquared === 0
+            ? 0
+            : Math.max(
+                0,
+                Math.min(
+                  1,
+                  ((point.x - x1) * dx + (point.y - y1) * dy) / lengthSquared,
+                ),
+              );
+
+        const closestX = x1 + t * dx;
+        const closestY = y1 + t * dy;
+
+        if (Math.hypot(point.x - closestX, point.y - closestY) <= 8) {
+          return annotation.id;
+        }
+      }
+
+      if (annotation.type === "text") {
+        const textWidth = (annotation.text?.length ?? 0) * 10;
+        const textHeight = 24;
+
+        if (
+          point.x >= annotation.x - 4 &&
+          point.x <= annotation.x + textWidth + 4 &&
+          point.y >= annotation.y - 4 &&
+          point.y <= annotation.y + textHeight
+        ) {
+          return annotation.id;
+        }
+      }
+    }
+
+    return null;
   };
 
   const handlePlaceText = (event: PointerEvent<HTMLDivElement>) => {
@@ -246,6 +329,21 @@ const ScreenshotEditor = ({
     setRedoStack([]);
     setDraft(null);
     onAnnotationsChange([]);
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selectedAnnotationId) return;
+
+    const nextAnnotations = annotations.filter(
+      (annotation) => annotation.id !== selectedAnnotationId,
+    );
+
+    if (annotations.length === nextAnnotations.length) return;
+    setRedoStack((current) => [...current, annotations]);
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
+    setSelectedAnnotationId(null);
+    setDraft(null);
   };
 
   const getImageDimensions = (): ImageDimensions | null => {
@@ -446,6 +544,14 @@ const ScreenshotEditor = ({
           </button>
           <button
             type="button"
+            onClick={handleDeleteSelected}
+            disabled={!selectedAnnotationId || isDrawing}
+            className="rounded-lg border px-3 py-2 disabled:opacity-50"
+          >
+            Delete selected
+          </button>
+          <button
+            type="button"
             onClick={handleClear}
             disabled={annotations.length === 0 || isDrawing}
             className="rounded-lg border px-3 py-2 disabled:opacity-50"
@@ -473,10 +579,26 @@ const ScreenshotEditor = ({
       <div
         className="relative inline-block max-w-full touch-none select-none overflow-hidden rounded-lg border"
         onPointerDown={(event) => {
+          if (event.button !== 0) return;
+
+          const point = getPoint(event);
+          if (!point) return;
+
+          const annotationId = findAnnotationAtPoint(point);
+
+          if (annotationId) {
+            event.preventDefault();
+            setSelectedAnnotationId(annotationId);
+            return;
+          }
+
+          setSelectedAnnotationId(null);
+
           if (selectedTool === "text") {
             handlePlaceText(event);
             return;
           }
+
           handlePointerDown(event);
         }}
         onPointerMove={handlePointerMove}
@@ -492,11 +614,13 @@ const ScreenshotEditor = ({
         />
 
         <svg
-          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          className="absolute inset-0 h-full w-full overflow-visible pointer-events-auto"
           viewBox={`0 0 ${imageRef.current?.clientWidth || 1} ${imageRef.current?.clientHeight || 1}`}
           preserveAspectRatio="none"
+          onClick={() => console.log("clicked>>>")}
         >
           {annotations.map((annotation) => {
+            const isSelected = annotation.id === selectedAnnotationId;
             if (annotation.type === "rectangle") {
               return (
                 <rect
@@ -507,20 +631,40 @@ const ScreenshotEditor = ({
                   height={annotation.height}
                   fill="none"
                   stroke={annotation.color}
-                  strokeWidth={2}
+                  strokeWidth={isSelected ? 4 : 2}
                   vectorEffect="non-scaling-stroke"
+                  pointerEvents="stroke"
+                  onClick={() => {
+                    handleSelectedAnnotation(annotation.id);
+                  }}
+                  style={{ cursor: "pointer" }}
                 />
               );
             } else if (annotation.type === "arrow") {
               return (
-                <ArrowShape
+                <g
                   key={annotation.id}
-                  x1={annotation.startX ?? annotation.x}
-                  y1={annotation.startY ?? annotation.y}
-                  x2={annotation.endX ?? annotation.x}
-                  y2={annotation.endY ?? annotation.y}
-                  color={annotation.color}
-                />
+                  onClick={() => handleSelectedAnnotation(annotation.id)}
+                  style={{ cursor: "pointer" }}
+                  pointerEvents="stroke"
+                >
+                  <ArrowShape
+                    x1={annotation.startX ?? annotation.x}
+                    y1={annotation.startY ?? annotation.y}
+                    x2={annotation.endX ?? annotation.x}
+                    y2={annotation.endY ?? annotation.y}
+                    color={annotation.color}
+                  />
+                  {isSelected && (
+                    <circle
+                      cx={annotation.startX ?? annotation.x}
+                      cy={annotation.startY ?? annotation.y}
+                      r={4}
+                      fill={annotation.color}
+                      pointerEvents="none"
+                    />
+                  )}
+                </g>
               );
             }
 
@@ -533,6 +677,12 @@ const ScreenshotEditor = ({
                 fontSize={18}
                 fontWeight={500}
                 dominantBaseline="hanging"
+                pointerEvents="visiblePainted"
+                onClick={() => handleSelectedAnnotation(annotation.id)}
+                style={{ cursor: "pointer" }}
+                stroke={isSelected ? annotation.color : "none"}
+                strokeWidth={isSelected ? 2 : 0}
+                paintOrder="stroke"
               >
                 {annotation.text}
               </text>
