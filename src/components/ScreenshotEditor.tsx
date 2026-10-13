@@ -86,6 +86,8 @@ const ScreenshotEditor = ({
   const [annotations, setAnnotations] = useState<RectangleAnnotation[]>([]);
   const [draft, setDraft] = useState<RectangleAnnotation | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [redoStack, setRedoStack] = useState<RectangleAnnotation[][]>([]);
+
   const [selectedTool, setSelectedTool] = useState<
     "rectangle" | "arrow" | "text"
   >("rectangle");
@@ -209,7 +211,7 @@ const ScreenshotEditor = ({
 
     setAnnotations(nextAnnotations);
     onAnnotationsChange(nextAnnotations);
-
+    setRedoStack([]);
     setDraft(null);
   };
 
@@ -220,6 +222,9 @@ const ScreenshotEditor = ({
   };
 
   const handleUndo = () => {
+    if (annotations.length === 0) return;
+    setRedoStack((current) => [...current, annotations]);
+
     const nextAnnotation = annotations.slice(0, -1);
 
     setAnnotations(nextAnnotation);
@@ -227,8 +232,18 @@ const ScreenshotEditor = ({
     setDraft(null);
   };
 
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const previousAnnotations = redoStack[redoStack.length - 1];
+    setAnnotations(previousAnnotations);
+    onAnnotationsChange(previousAnnotations);
+    setRedoStack((current) => current.slice(0, -1));
+    setDraft(null);
+  };
+
   const handleClear = () => {
     setAnnotations([]);
+    setRedoStack([]);
     setDraft(null);
     onAnnotationsChange([]);
   };
@@ -317,6 +332,23 @@ const ScreenshotEditor = ({
         );
         return;
       }
+
+      if (annotation.type === "text") {
+        if (!annotation.text) return;
+
+        const dimensions = getImageDimensions();
+        if (!dimensions) return;
+
+        const scaleY = dimensions.naturalHeight / dimensions.displayHeight;
+
+        const fontSize = 18 * scaleY;
+        context.fillStyle = annotation.color;
+        context.font = `500 ${fontSize}px Inter, sans-serif`;
+        context.textBaseline = "hanging";
+        context.fillText(annotation.text, annotation.x, annotation.y);
+        return;
+      }
+
       const startX = annotation.startX ?? annotation.x;
       const startY = annotation.startY ?? annotation.y;
       const endX = annotation.endX ?? annotation.x;
@@ -419,6 +451,14 @@ const ScreenshotEditor = ({
             className="rounded-lg border px-3 py-2 disabled:opacity-50"
           >
             Clear
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={redoStack.length === 0 || isDrawing}
+            className="rounded-lg border px-3 py-2 disabled:opacity-50"
+          >
+            Redo
           </button>
           <button
             type="button"
