@@ -1,4 +1,5 @@
 import React, { useRef, useState, type PointerEvent } from "react";
+import { ANNOTATION_COLORS } from "../constants/colors";
 
 type ImageDimensions = {
   displayWidth: number;
@@ -95,6 +96,7 @@ const ScreenshotEditor = ({
     "rectangle" | "arrow" | "text"
   >("rectangle");
   const [textInput, setTextInput] = useState("");
+  const [selectedColor, setSelectedColor] = useState("#ef4444");
 
   const getPoint = (event: PointerEvent<HTMLDivElement>): Point | null => {
     const element = imageRef.current;
@@ -110,8 +112,30 @@ const ScreenshotEditor = ({
   };
 
   const handleSelectedAnnotation = (id: string) => {
-    console.log("here>>>", id);
     setSelectedAnnotationId(id);
+  };
+
+  const handleChangeSelectedColor = (color: string) => {
+    setSelectedColor(color);
+    if (!selectedColor) return;
+
+    const nextAnnotations = annotations.map((annotation) =>
+      annotation.id === selectedAnnotationId
+        ? { ...annotation, color }
+        : annotation,
+    );
+
+    if (
+      nextAnnotations.every(
+        (annotation, index) => annotation.color === annotations[index]?.color,
+      )
+    ) {
+      return;
+    }
+
+    setRedoStack((current) => [...current, annotations]);
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
   };
 
   const findAnnotationAtPoint = (point: Point): string | null => {
@@ -207,7 +231,7 @@ const ScreenshotEditor = ({
       y: point.y,
       width: 0,
       height: 0,
-      color: "#ef4444",
+      color: selectedColor,
       text,
     };
 
@@ -232,7 +256,7 @@ const ScreenshotEditor = ({
       y: point.y,
       width: 0,
       height: 0,
-      color: "#ef4444",
+      color: selectedColor,
       startX: point.x,
       startY: point.y,
       endX: point.x,
@@ -417,7 +441,7 @@ const ScreenshotEditor = ({
     const exportAnnotations = getExportAnnotations();
 
     context.lineWidth = 2;
-    context.strokeStyle = "#ef4444";
+    context.strokeStyle = selectedColor;
 
     exportAnnotations.forEach((annotation) => {
       context.strokeStyle = annotation.color;
@@ -534,6 +558,42 @@ const ScreenshotEditor = ({
               className="rounded-lg border px-3 py-2"
             />
           )}
+          <div className="relative flex items-center gap-2">
+            <span className="text-sm">Color</span>
+            <label
+              title="Choose a custom annotation color"
+              className="relative h-9 w-9 cursor-pointer overflow-hidden rounded-lg border-2 border-gray-300"
+              style={{ backgroundColor: selectedColor }}
+            >
+              <input
+                type="color"
+                value={selectedColor}
+                onChange={(event) =>
+                  handleChangeSelectedColor(event.target.value)
+                }
+                aria-label="Choose annotation color"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
+            <div className="flex flex-wrap gap-1">
+              {ANNOTATION_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  title={color}
+                  aria-label={`Select color ${color}`}
+                  aria-pressed={selectedColor === color}
+                  onClick={() => handleChangeSelectedColor(color)}
+                  className={`h-6 w-6 rounded-full border ${
+                    selectedColor === color
+                      ? "ring-2 ring-blue-500 ring-offset-1"
+                      : "border-gray-300"
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={handleUndo}
@@ -696,7 +756,7 @@ const ScreenshotEditor = ({
                 y={draft.y}
                 width={draft.width}
                 height={draft.height}
-                fill="#ef4444"
+                fill={selectedColor}
                 fillOpacity={0.12}
                 stroke={draft.color}
                 strokeWidth={2}
