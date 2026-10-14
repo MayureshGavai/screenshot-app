@@ -17,6 +17,7 @@ export type RectangleAnnotation = {
   height: number;
   color: string;
   text?: string;
+  fontSize?: number;
   startX?: number;
   startY?: number;
   endX?: number;
@@ -87,6 +88,7 @@ const ScreenshotEditor = ({
   const [annotations, setAnnotations] = useState<RectangleAnnotation[]>([]);
   const [draft, setDraft] = useState<RectangleAnnotation | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [undoStack, setUndoStack] = useState<RectangleAnnotation[][]>([]);
   const [redoStack, setRedoStack] = useState<RectangleAnnotation[][]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<
     string | null
@@ -97,6 +99,8 @@ const ScreenshotEditor = ({
   >("rectangle");
   const [textInput, setTextInput] = useState("");
   const [selectedColor, setSelectedColor] = useState("#ef4444");
+  const [selectedFontSize, setSelectedFontSize] = useState(18);
+  const [isEditingText, setIsEditingText] = useState(false);
 
   const getPoint = (event: PointerEvent<HTMLDivElement>): Point | null => {
     const element = imageRef.current;
@@ -113,6 +117,12 @@ const ScreenshotEditor = ({
 
   const handleSelectedAnnotation = (id: string) => {
     setSelectedAnnotationId(id);
+    const annotation = annotations.find((item) => item.id === id);
+    if (annotation?.type === "text") {
+      setTextInput(annotation.text ?? "");
+      setSelectedFontSize(annotation.fontSize ?? 18);
+      setIsEditingText(false);
+    }
   };
 
   const handleChangeSelectedColor = (color: string) => {
@@ -125,17 +135,13 @@ const ScreenshotEditor = ({
         : annotation,
     );
 
-    if (
-      nextAnnotations.every(
-        (annotation, index) => annotation.color === annotations[index]?.color,
-      )
-    ) {
-      return;
-    }
+    const hasChanged = nextAnnotations.some(
+      (annotation, index) => annotation.color !== annotations[index]?.color,
+    );
 
-    setRedoStack((current) => [...current, annotations]);
-    setAnnotations(nextAnnotations);
-    onAnnotationsChange(nextAnnotations);
+    if (!hasChanged) return;
+
+    commitAnnotations(nextAnnotations);
   };
 
   const findAnnotationAtPoint = (point: Point): string | null => {
@@ -196,8 +202,9 @@ const ScreenshotEditor = ({
       }
 
       if (annotation.type === "text") {
-        const textWidth = (annotation.text?.length ?? 0) * 10;
-        const textHeight = 24;
+        const fontSize = annotation.fontSize ?? 18;
+        const textWidth = (annotation.text?.length ?? 0) * fontSize * 0.6;
+        const textHeight = fontSize * 1.4;
 
         if (
           point.x >= annotation.x - 4 &&
@@ -221,7 +228,6 @@ const ScreenshotEditor = ({
     if (!point) return;
 
     const text = textInput.trim();
-
     if (!text) return;
 
     const newAnnotation: RectangleAnnotation = {
@@ -232,6 +238,7 @@ const ScreenshotEditor = ({
       width: 0,
       height: 0,
       color: selectedColor,
+      fontSize: selectedFontSize,
       text,
     };
 
@@ -314,10 +321,7 @@ const ScreenshotEditor = ({
       return;
     }
 
-    const nextAnnotations = [...annotations, draft];
-
-    setAnnotations(nextAnnotations);
-    onAnnotationsChange(nextAnnotations);
+    commitAnnotations([...annotations, draft]);
     setRedoStack([]);
     setDraft(null);
   };
@@ -328,31 +332,86 @@ const ScreenshotEditor = ({
     setDraft(null);
   };
 
+  const saveHistory = (currentAnnotations: RectangleAnnotation[]) => {
+    setRedoStack((current) => [...current, currentAnnotations]);
+  };
+
+  const commitAnnotations = (nextAnnotations: RectangleAnnotation[]) => {
+    setUndoStack((current) => [...current, annotations]);
+    setRedoStack([]);
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
+    setDraft(null);
+  };
+
+  const handleUpdateSelectedText = () => {
+    if (!selectedAnnotationId) return;
+
+    const selectedAnnotation = annotations.find(
+      (annotation) => annotation.id === selectedAnnotationId,
+    );
+
+    if (selectedAnnotation?.type !== "text") return;
+
+    const text = textInput.trim();
+    if (!text) return;
+
+    const nextAnnotations = annotations.map((annotation) =>
+      annotation.id === selectedAnnotationId
+        ? {
+            ...annotation,
+            text,
+            fontSize: selectedFontSize,
+          }
+        : annotation,
+    );
+
+    const hasChanged = nextAnnotations.some(
+      (annotation, index) =>
+        annotation.text !== annotations[index]?.text ||
+        annotation.fontSize !== annotations[index]?.fontSize,
+    );
+
+    if (!hasChanged) {
+      setIsEditingText(false);
+      return;
+    }
+
+    commitAnnotations(nextAnnotations);
+    setIsEditingText(false);
+  };
+
   const handleUndo = () => {
-    if (annotations.length === 0) return;
+    if (undoStack.length === 0) return;
+
+    const previousAnnotations = undoStack[undoStack.length - 1];
+
     setRedoStack((current) => [...current, annotations]);
-
-    const nextAnnotation = annotations.slice(0, -1);
-
-    setAnnotations(nextAnnotation);
-    onAnnotationsChange(nextAnnotation);
+    setUndoStack((current) => current.slice(0, -1));
+    setAnnotations(previousAnnotations);
+    onAnnotationsChange(previousAnnotations);
+    setSelectedAnnotationId(null);
     setDraft(null);
   };
 
   const handleRedo = () => {
     if (redoStack.length === 0) return;
-    const previousAnnotations = redoStack[redoStack.length - 1];
-    setAnnotations(previousAnnotations);
-    onAnnotationsChange(previousAnnotations);
+
+    const nextAnnotations = redoStack[redoStack.length - 1];
+
+    setUndoStack((current) => [...current, annotations]);
     setRedoStack((current) => current.slice(0, -1));
+    setAnnotations(nextAnnotations);
+    onAnnotationsChange(nextAnnotations);
+    setSelectedAnnotationId(null);
     setDraft(null);
   };
 
   const handleClear = () => {
-    setAnnotations([]);
-    setRedoStack([]);
-    setDraft(null);
-    onAnnotationsChange([]);
+    if (annotations.length === 0) return;
+
+    commitAnnotations([]);
+    setSelectedAnnotationId(null);
   };
 
   const handleDeleteSelected = () => {
@@ -362,12 +421,10 @@ const ScreenshotEditor = ({
       (annotation) => annotation.id !== selectedAnnotationId,
     );
 
-    if (annotations.length === nextAnnotations.length) return;
-    setRedoStack((current) => [...current, annotations]);
-    setAnnotations(nextAnnotations);
-    onAnnotationsChange(nextAnnotations);
+    if (nextAnnotations.length === annotations.length) return;
+
+    commitAnnotations(nextAnnotations);
     setSelectedAnnotationId(null);
-    setDraft(null);
   };
 
   const getImageDimensions = (): ImageDimensions | null => {
@@ -463,7 +520,7 @@ const ScreenshotEditor = ({
 
         const scaleY = dimensions.naturalHeight / dimensions.displayHeight;
 
-        const fontSize = 18 * scaleY;
+        const fontSize = (annotation.fontSize ?? 18) * scaleY;
         context.fillStyle = annotation.color;
         context.font = `500 ${fontSize}px Inter, sans-serif`;
         context.textBaseline = "hanging";
@@ -515,11 +572,14 @@ const ScreenshotEditor = ({
         <div>
           <h2 className="text-xl font-semibold">Screenshot editor</h2>
           <p className="text-sm text-gray-600">
-            {selectedTool === "text"
-              ? "Enter text above, then click on the image to place it."
-              : `Click and drag over the image to draw red ${
-                  selectedTool === "rectangle" ? "rectangles" : "arrows"
-                }.`}
+            {selectedAnnotationId &&
+            annotations.some(
+              (annotation) =>
+                annotation.id === selectedAnnotationId &&
+                annotation.type === "text",
+            )
+              ? "Edit the selected text, choose a size, then click Apply changes."
+              : "Enter text, choose a size, then click the image to place it."}
           </p>
         </div>
         <div className="flex gap-2">
@@ -549,14 +609,53 @@ const ScreenshotEditor = ({
             Text
           </button>
           {selectedTool === "text" && (
-            <input
-              type="text"
-              value={textInput}
-              onChange={(event) => setTextInput(event.target.value)}
-              placeholder="Enter annotation text"
-              aria-label="annotation text"
-              className="rounded-lg border px-3 py-2"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={textInput}
+                onChange={(event) => {
+                  setTextInput(event.target.value);
+                  setIsEditingText(true);
+                }}
+                placeholder="Enter annotation text"
+                aria-label="Annotation text"
+                className="rounded-lg border px-3 py-2"
+              />
+
+              <label className="flex items-center gap-2 text-sm">
+                Size
+                <select
+                  value={selectedFontSize}
+                  onChange={(event) => {
+                    setSelectedFontSize(Number(event.target.value));
+                    setIsEditingText(true);
+                  }}
+                  className="rounded-lg border px-2 py-2"
+                  aria-label="Text font size"
+                >
+                  {[12, 14, 16, 18, 20, 24, 28, 32, 40, 48].map((size) => (
+                    <option key={size} value={size}>
+                      {size}px
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {annotations.some(
+                (annotation) =>
+                  annotation.id === selectedAnnotationId &&
+                  annotation.type === "text",
+              ) && (
+                <button
+                  type="button"
+                  onClick={handleUpdateSelectedText}
+                  disabled={!textInput.trim()}
+                  className="rounded-lg border px-3 py-2 disabled:opacity-50"
+                >
+                  Apply changes
+                </button>
+              )}
+            </div>
           )}
           <div className="relative flex items-center gap-2">
             <span className="text-sm">Color</span>
@@ -648,7 +747,7 @@ const ScreenshotEditor = ({
 
           if (annotationId) {
             event.preventDefault();
-            setSelectedAnnotationId(annotationId);
+            handleSelectedAnnotation(annotationId);
             return;
           }
 
@@ -734,7 +833,7 @@ const ScreenshotEditor = ({
                 x={annotation.x}
                 y={annotation.y}
                 fill={annotation.color}
-                fontSize={18}
+                fontSize={annotation.fontSize ?? 18}
                 fontWeight={500}
                 dominantBaseline="hanging"
                 pointerEvents="visiblePainted"
