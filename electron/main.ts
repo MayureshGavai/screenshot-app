@@ -7,8 +7,12 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const createWindow = () => {
-  const mainWindow = new BrowserWindow({
+const APP_ID = "com.screenshotapp.desktop";
+
+let mainWindow: BrowserWindow | null = null;
+
+const createWindow = async (): Promise<void> => {
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 900,
 
@@ -20,7 +24,20 @@ const createWindow = () => {
     },
   });
 
-  mainWindow.loadURL("http://localhost:5173");
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
+  try {
+    if (app.isPackaged) {
+      const rendererPath = path.join(app.getAppPath(), "dist", "index.html");
+      await mainWindow.loadFile(rendererPath);
+    } else {
+      await mainWindow.loadFile("http://localhost:5173");
+    }
+  } catch (error) {
+    console.error("Failed to load the application window:", error);
+  }
 };
 
 ipcMain.handle("get-platform", () => {
@@ -66,7 +83,7 @@ ipcMain.handle("save-screenshot", async (_event, dataUrl: unknown) => {
   const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
 
   if (!match) {
-    throw new Error("The screenshot must be valid PNG data url");
+    throw new Error("The screenshot must be a valid PNG data URL");
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -105,16 +122,26 @@ ipcMain.handle("hide-window", (event) => {
 
 ipcMain.handle("show-window", (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  console.log("show-window IPC received");
 
   if (!window || window.isDestroyed()) {
     return;
   }
 
   window.show();
-  console.log("Window restored");
 });
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  app.setAppUserModelId(APP_ID);
+  await createWindow();
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      void createWindow();
+    }
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
