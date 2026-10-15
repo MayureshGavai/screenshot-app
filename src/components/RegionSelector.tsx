@@ -86,7 +86,7 @@ const RegionSelector = ({ image, onApply, onCancel }: RegionSelectorProps) => {
         />
         {selection && (
           <div
-            className="pointer-events-none absolute border-2 border-green-500 bg-green-500/20"
+            className="pointer-events-none absolute border border-dashed border-green-500 bg-green-500/20"
             style={{
               left: selection.x,
               top: selection.y,

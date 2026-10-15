@@ -1,4 +1,11 @@
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  dialog,
+  ipcMain,
+  Menu,
+} from "electron";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { platform } from "node:process";
@@ -12,6 +19,8 @@ const DEV_SERVER_URL = "http://localhost:5173";
 const MAX_PNG_BYTES = 100 * 1024 * 1024;
 
 let mainWindow: BrowserWindow | null = null;
+
+// Menu.setApplicationMenu(null);
 
 const getRendererPath = () => path.join(app.getAppPath(), "dist", "index.html");
 
@@ -43,8 +52,8 @@ const assertTrustedIpcSender = (event: Electron.IpcMainInvokeEvent): void => {
 
 const createWindow = async (): Promise<void> => {
   const window = new BrowserWindow({
-    width: 1200,
-    height: 900,
+    width: 900,
+    height: 600,
 
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
