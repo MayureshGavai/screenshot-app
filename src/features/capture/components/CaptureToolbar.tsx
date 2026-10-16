@@ -15,6 +15,8 @@ type Point = {
   y: number;
 };
 
+type ResizeHandle = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
 const MIN_SELECTION_SIZE = 3;
 
 const CaptureToolbar = () => {
@@ -28,6 +30,8 @@ const CaptureToolbar = () => {
 
   const overlayRef = useRef<HTMLElement>(null);
   const startPointRef = useRef<Point | null>(null);
+  const resizeHandleRef = useRef<ResizeHandle | null>(null);
+  const initialSelectionRef = useRef<Selection | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +83,32 @@ const CaptureToolbar = () => {
     };
   };
 
+  const resizeSelection = (
+    initial: Selection,
+    handle: ResizeHandle,
+    point: Point,
+  ) => {
+    const left = initial.x;
+    const top = initial.y;
+    const right = initial.x + initial.width;
+    const bottom = initial.y + initial.height;
+
+    const fixedX = handle.includes("left") ? right : left;
+    const fixedY = handle.includes("top") ? bottom : top;
+
+    return {
+      x: Math.min(fixedX, point.x),
+      y: Math.min(fixedY, point.y),
+      width: Math.abs(point.x - fixedX),
+      height: Math.abs(point.y - fixedY),
+    };
+  };
+
   const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (resizeHandleRef.current) {
+      return;
+    }
+
     if (mode !== "rectangle" || !snapshot || isOpen) {
       return;
     }
@@ -104,24 +133,13 @@ const CaptureToolbar = () => {
     event.preventDefault();
   };
 
-  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    const start = startPointRef.current;
-
-    if (!isSelecting || !start) {
+  const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
+    if (resizeHandleRef.current) {
+      resizeHandleRef.current = null;
+      initialSelectionRef.current = null;
       return;
     }
 
-    const current = getPoint(event);
-
-    setSelection({
-      x: Math.min(start.x, current.x),
-      y: Math.min(start.y, current.y),
-      width: Math.abs(current.x - start.x),
-      height: Math.abs(current.y - start.y),
-    });
-  };
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
     if (!isSelecting || !startPointRef.current) {
       return;
     }
@@ -151,9 +169,72 @@ const CaptureToolbar = () => {
   };
 
   const handlePointerCancel = () => {
+    if (resizeHandleRef.current) {
+      resizeHandleRef.current = null;
+      initialSelectionRef.current = null;
+      return;
+    }
+
     startPointRef.current = null;
     setIsSelecting(false);
     setSelection(null);
+  };
+
+  const handleResizeStart = (
+    event: React.PointerEvent<HTMLSpanElement>,
+    handle: ResizeHandle,
+  ) => {
+    if (event.button !== 0 || !selection || isSelecting) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    resizeHandleRef.current = handle;
+    initialSelectionRef.current = { ...selection };
+
+    overlay.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const resizeHandle = resizeHandleRef.current;
+    const initialSelection = initialSelectionRef.current;
+
+    if (resizeHandle && initialSelection) {
+      const point = getPoint(event);
+
+      const bounds = overlayRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+
+      const boundedPoint = {
+        x: Math.max(0, Math.min(point.x, bounds.width)),
+        y: Math.max(0, Math.min(point.y, bounds.height)),
+      };
+
+      setSelection(
+        resizeSelection(initialSelection, resizeHandle, boundedPoint),
+      );
+
+      return;
+    }
+
+    const start = startPointRef.current;
+    if (!isSelecting || !start) {
+      return;
+    }
+
+    const current = getPoint(event);
+
+    setSelection({
+      x: Math.min(start.x, current.x),
+      y: Math.min(start.y, current.y),
+      width: Math.abs(current.x - start.x),
+      height: Math.abs(current.y - start.y),
+    });
   };
 
   return (
@@ -187,10 +268,24 @@ const CaptureToolbar = () => {
           }}
         >
           <div className="capture-overlay__selection-border">
-            <span className="capture-overlay__handle capture-overlay__handle--top-left" />
-            <span className="capture-overlay__handle capture-overlay__handle--top-right" />
-            <span className="capture-overlay__handle capture-overlay__handle--bottom-left" />
-            <span className="capture-overlay__handle capture-overlay__handle--bottom-right" />
+            <span
+              className="capture-overlay__handle capture-overlay__handle--top-left"
+              onPointerDown={(event) => handleResizeStart(event, "top-left")}
+            />
+            <span
+              className="capture-overlay__handle capture-overlay__handle--top-right"
+              onPointerDown={(event) => handleResizeStart(event, "top-right")}
+            />
+            <span
+              className="capture-overlay__handle capture-overlay__handle--bottom-left"
+              onPointerDown={(event) => handleResizeStart(event, "bottom-left")}
+            />
+            <span
+              className="capture-overlay__handle capture-overlay__handle--bottom-right"
+              onPointerDown={(event) =>
+                handleResizeStart(event, "bottom-right")
+              }
+            />
           </div>
         </div>
       )}
