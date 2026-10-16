@@ -228,17 +228,6 @@ const captureDesktopSnapshot = async (): Promise<string> => {
     throw new Error("Could not capture the desktop");
   }
 
-  const thumbnailSize = source.thumbnail.getSize();
-
-  console.log("Capture diagnostics:", {
-    displayId: display.id,
-    displayBounds: display.bounds,
-    scaleFactor: display.scaleFactor,
-    sourceName: source.name,
-    sourceDisplayId: source.display_id,
-    thumbnailSize,
-  });
-
   return source.thumbnail.toDataURL();
 };
 

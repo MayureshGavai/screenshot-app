@@ -1,7 +1,21 @@
 import { Aperture, Check, ChevronDown, Crop, Monitor, X } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type CaptureMode = "rectangle" | "screen";
+
+type Selection = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type Point = {
+  x: number;
+  y: number;
+};
+
+const MIN_SELECTION_SIZE = 3;
 
 const CaptureToolbar = () => {
   const [mode, setMode] = useState<CaptureMode>("rectangle");
@@ -9,14 +23,20 @@ const CaptureToolbar = () => {
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState("");
 
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const overlayRef = useRef<HTMLElement>(null);
+  const startPointRef = useRef<Point | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
     window.electronAPI
       .getCaptureSnapshot()
-      .then((dataurl) => {
+      .then((dataUrl) => {
         if (!cancelled) {
-          setSnapshot(dataurl);
+          setSnapshot(dataUrl);
         }
       })
       .catch((error: unknown) => {
@@ -30,26 +50,150 @@ const CaptureToolbar = () => {
     return () => {
       cancelled = true;
     };
-  });
+  }, []);
 
   const handleClose = () => {
     void window.electronAPI.closeCaptureToolbar();
   };
 
-  const handleModeChange = (nextCode: CaptureMode) => {
-    setMode(nextCode);
+  const handleModeChange = (nextMode: CaptureMode) => {
+    setMode(nextMode);
     setIsOpen(false);
+    setSelection(null);
+    setIsSelecting(false);
+    startPointRef.current = null;
+  };
+
+  const getPoint = (event: React.PointerEvent): Point => {
+    const bounds = overlayRef.current?.getBoundingClientRect();
+    if (!bounds) {
+      return {
+        x: 0,
+        y: 0,
+      };
+    }
+
+    return {
+      x: Math.max(0, Math.min(event.clientX - bounds.left, bounds.width)),
+      y: Math.max(0, Math.min(event.clientY - bounds.top, bounds.height)),
+    };
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (mode !== "rectangle" || !snapshot || isOpen) {
+      return;
+    }
+
+    // Start selection only with the primary mouse button.
+    if (event.button !== 0) {
+      return;
+    }
+
+    const point = getPoint(event);
+
+    startPointRef.current = point;
+    setSelection({
+      x: point.x,
+      y: point.y,
+      width: 0,
+      height: 0,
+    });
+    setIsSelecting(true);
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const start = startPointRef.current;
+
+    if (!isSelecting || !start) {
+      return;
+    }
+
+    const current = getPoint(event);
+
+    setSelection({
+      x: Math.min(start.x, current.x),
+      y: Math.min(start.y, current.y),
+      width: Math.abs(current.x - start.x),
+      height: Math.abs(current.y - start.y),
+    });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
+    if (!isSelecting || !startPointRef.current) {
+      return;
+    }
+
+    const start = startPointRef.current;
+    const current = getPoint(event);
+
+    const finalSelection: Selection = {
+      x: Math.min(start.x, current.x),
+      y: Math.min(start.y, current.y),
+      width: Math.abs(current.x - start.x),
+      height: Math.abs(current.y - start.y),
+    };
+
+    startPointRef.current = null;
+    setIsSelecting(false);
+
+    if (
+      finalSelection.width < MIN_SELECTION_SIZE ||
+      finalSelection.height < MIN_SELECTION_SIZE
+    ) {
+      setSelection(null);
+      return;
+    }
+
+    setSelection(finalSelection);
+  };
+
+  const handlePointerCancel = () => {
+    startPointRef.current = null;
+    setIsSelecting(false);
+    setSelection(null);
   };
 
   return (
-    <main className="capture-overlay">
+    <main
+      ref={overlayRef}
+      className="capture-overlay"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    >
       {snapshot && (
         <div
           className="capture-overlay__snapshot"
           style={{ backgroundImage: `url("${snapshot}")` }}
-        ></div>
+        />
       )}
       <div className="capture-overlay__backdrop" />
+
+      {mode === "rectangle" && selection && snapshot && (
+        <div
+          className="capture-overlay__selection-reveal"
+          style={{
+            left: selection.x,
+            top: selection.y,
+            width: selection.width,
+            height: selection.height,
+            backgroundImage: `url("${snapshot}")`,
+            backgroundPosition: `-${selection.x}px -${selection.y}px`,
+            backgroundSize: "100vw 100vh",
+          }}
+        >
+          <div className="capture-overlay__selection-border">
+            <span className="capture-overlay__handle capture-overlay__handle--top-left" />
+            <span className="capture-overlay__handle capture-overlay__handle--top-right" />
+            <span className="capture-overlay__handle capture-overlay__handle--bottom-left" />
+            <span className="capture-overlay__handle capture-overlay__handle--bottom-right" />
+          </div>
+        </div>
+      )}
 
       {captureError && (
         <div className="capture-overlay__error" role="alert">
@@ -60,6 +204,9 @@ const CaptureToolbar = () => {
       <section
         className="capture-toolbar"
         aria-label="Screenshot capture toolbar"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
       >
         <div className="capture-toolbar__logo" aria-label="Screenshot App">
           <Aperture size={21} />
