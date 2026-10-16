@@ -298,6 +298,61 @@ const CaptureToolbar = () => {
     });
   };
 
+  const handleConfirmSelection = () => {
+    if (mode === "rectangle") {
+      if (
+        !selection ||
+        selection.width < MIN_SELECTION_SIZE ||
+        selection.height < MIN_SELECTION_SIZE
+      ) {
+        return;
+      }
+
+      console.log("Confirm rectangle:", selection);
+      return;
+    }
+
+    console.log("Confirm full screen");
+  };
+
+  const getConfirmButtonPosition = (currentSelection: Selection) => {
+    const bounds = overlayRef.current?.getBoundingClientRect();
+
+    const overlayWidth = bounds?.width ?? window.innerWidth;
+    const overlayHeight = bounds?.height ?? window.innerHeight;
+
+    const buttonSize = 36;
+    const gap = 8;
+    const edgePadding = 8;
+
+    const selectionRight = currentSelection.x + currentSelection.width;
+    const selectionBottom = currentSelection.y + currentSelection.height;
+
+    const fitsBelow =
+      selectionBottom + gap + buttonSize <= overlayHeight - edgePadding;
+
+    const fitsRight = selectionRight + buttonSize <= overlayWidth - edgePadding;
+
+    const top = fitsBelow
+      ? selectionBottom + gap
+      : Math.max(edgePadding, currentSelection.y - buttonSize - gap);
+
+    const left = fitsRight
+      ? selectionRight - buttonSize
+      : Math.max(
+          edgePadding,
+          currentSelection.x + currentSelection.width - buttonSize,
+        );
+
+    return {
+      position: "absolute" as const,
+      top,
+      left,
+      width: buttonSize,
+      height: buttonSize,
+    };
+  };
+
   return (
     <main
       ref={overlayRef}
@@ -350,6 +405,23 @@ const CaptureToolbar = () => {
             />
           </div>
         </div>
+      )}
+
+      {mode === "rectangle" && selection && snapshot && (
+        <button
+          type="button"
+          className="capture-overlay__confirm"
+          aria-label="Confirm selection"
+          title="Confirm selection"
+          style={getConfirmButtonPosition(selection)}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={handleConfirmSelection}
+        >
+          <Check size={19} />
+        </button>
       )}
 
       {captureError && (
@@ -411,6 +483,18 @@ const CaptureToolbar = () => {
         </div>
 
         <div className="capture-toolbar__divider" />
+
+        {mode === "screen" && (
+          <button
+            type="button"
+            className="capture-toolbar__confirm"
+            aria-label="Confirm full screen"
+            title="Confirm full screen"
+            onClick={handleConfirmSelection}
+          >
+            <Check size={19} />
+          </button>
+        )}
 
         <button
           type="button"
