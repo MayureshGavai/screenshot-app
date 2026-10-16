@@ -27,11 +27,15 @@ const CaptureToolbar = () => {
 
   const [selection, setSelection] = useState<Selection | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
+  const [isPointerInsideSelection, setIsPointerInsideSelection] =
+    useState(false);
 
   const overlayRef = useRef<HTMLElement>(null);
   const startPointRef = useRef<Point | null>(null);
   const resizeHandleRef = useRef<ResizeHandle | null>(null);
   const initialSelectionRef = useRef<Selection | null>(null);
+  const moveStartPointRef = useRef<Point | null>(null);
+  const initialMoveSelectionRef = useRef<Selection | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +124,25 @@ const CaptureToolbar = () => {
 
     const point = getPoint(event);
 
+    if (
+      selection &&
+      point.x >= selection.x &&
+      point.x <= selection.x + selection.width &&
+      point.y >= selection.y &&
+      point.y <= selection.y + selection.height
+    ) {
+      event.preventDefault();
+
+      moveStartPointRef.current = point;
+      initialMoveSelectionRef.current = { ...selection };
+
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    moveStartPointRef.current = null;
+    initialMoveSelectionRef.current = null;
+
     startPointRef.current = point;
     setSelection({
       x: point.x,
@@ -134,6 +157,12 @@ const CaptureToolbar = () => {
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
+    if (moveStartPointRef.current && initialMoveSelectionRef.current) {
+      moveStartPointRef.current = null;
+      initialMoveSelectionRef.current = null;
+      return;
+    }
+
     if (resizeHandleRef.current) {
       resizeHandleRef.current = null;
       initialSelectionRef.current = null;
@@ -169,6 +198,12 @@ const CaptureToolbar = () => {
   };
 
   const handlePointerCancel = () => {
+    if (moveStartPointRef.current || initialMoveSelectionRef.current) {
+      moveStartPointRef.current = null;
+      initialMoveSelectionRef.current = null;
+      return;
+    }
+
     if (resizeHandleRef.current) {
       resizeHandleRef.current = null;
       initialSelectionRef.current = null;
@@ -206,34 +241,60 @@ const CaptureToolbar = () => {
 
     if (resizeHandle && initialSelection) {
       const point = getPoint(event);
+      setSelection(resizeSelection(initialSelection, resizeHandle, point));
+      return;
+    }
+    const moveStart = moveStartPointRef.current;
+    const initialMoveSelection = initialMoveSelectionRef.current;
 
+    if (moveStart && initialMoveSelection) {
+      const point = getPoint(event);
       const bounds = overlayRef.current?.getBoundingClientRect();
-      if (!bounds) return;
 
-      const boundedPoint = {
-        x: Math.max(0, Math.min(point.x, bounds.width)),
-        y: Math.max(0, Math.min(point.y, bounds.height)),
-      };
+      if (!bounds) {
+        return;
+      }
 
-      setSelection(
-        resizeSelection(initialSelection, resizeHandle, boundedPoint),
-      );
+      const deltaX = point.x - moveStart.x;
+      const deltaY = point.y - moveStart.y;
+
+      const maxX = Math.max(0, bounds.width - initialMoveSelection.width);
+
+      const maxY = Math.max(0, bounds.height - initialMoveSelection.height);
+
+      setSelection({
+        ...initialMoveSelection,
+        x: Math.max(0, Math.min(initialMoveSelection.x + deltaX, maxX)),
+        y: Math.max(0, Math.min(initialMoveSelection.y + deltaY, maxY)),
+      });
 
       return;
     }
 
+    // Update the cursor when hovering over the selection.
+    const point = getPoint(event);
+
+    const isInside =
+      selection !== null &&
+      point.x >= selection.x &&
+      point.x <= selection.x + selection.width &&
+      point.y >= selection.y &&
+      point.y <= selection.y + selection.height;
+
+    setIsPointerInsideSelection(isInside);
+
+    // 3. Draw a new selection.
     const start = startPointRef.current;
+
     if (!isSelecting || !start) {
       return;
     }
 
-    const current = getPoint(event);
-
     setSelection({
-      x: Math.min(start.x, current.x),
-      y: Math.min(start.y, current.y),
-      width: Math.abs(current.x - start.x),
-      height: Math.abs(current.y - start.y),
+      x: Math.min(start.x, point.x),
+      y: Math.min(start.y, point.y),
+      width: Math.abs(point.x - start.x),
+      height: Math.abs(point.y - start.y),
     });
   };
 
@@ -241,6 +302,7 @@ const CaptureToolbar = () => {
     <main
       ref={overlayRef}
       className="capture-overlay"
+      style={{ cursor: isPointerInsideSelection ? "move" : "crosshair" }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
