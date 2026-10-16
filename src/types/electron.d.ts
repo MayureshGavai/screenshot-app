@@ -18,6 +18,8 @@ declare global {
       ) => Promise<{ canceled: true } | { canceled: false; filePath: string }>;
       hideWindow: () => Promise<void>;
       showWindow: () => Promise<void>;
+      closeCaptureToolbar: () => Promise<void>;
+      getCaptureSnapshot: () => Promise<string>;
     };
   }
 }

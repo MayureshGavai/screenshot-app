@@ -3,8 +3,10 @@ import {
   BrowserWindow,
   desktopCapturer,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
+  screen,
 } from "electron";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -19,6 +21,9 @@ const DEV_SERVER_URL = "http://localhost:5173";
 const MAX_PNG_BYTES = 100 * 1024 * 1024;
 
 let mainWindow: BrowserWindow | null = null;
+let toolbarWindow: BrowserWindow | null = null;
+let isCaptureStarting = false;
+let captureSnapshot: string | null = null;
 
 // Menu.setApplicationMenu(null);
 
@@ -39,10 +44,15 @@ const isTrustedRendererUrl = (rawUrl: string): boolean => {
 };
 
 const assertTrustedIpcSender = (event: Electron.IpcMainInvokeEvent): void => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+  const isManagedWindow =
+    !!senderWindow &&
+    !senderWindow.isDestroyed() &&
+    (senderWindow === mainWindow || senderWindow === toolbarWindow);
+
   if (
-    !mainWindow ||
-    mainWindow.isDestroyed() ||
-    event.sender !== mainWindow.webContents ||
+    !isManagedWindow ||
     event.senderFrame !== event.sender.mainFrame ||
     !isTrustedRendererUrl(event.senderFrame.url)
   ) {
@@ -91,6 +101,145 @@ const createWindow = async (): Promise<void> => {
   } catch (error) {
     console.error("Failed to load the application window:", error);
   }
+};
+
+const createToolbarWindow = async (): Promise<void> => {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.show();
+    toolbarWindow.focus();
+    return;
+  }
+
+  const display = screen.getPrimaryDisplay();
+  const { x, y, width, height } = display.workArea;
+
+  const window = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
+
+    frame: false,
+    transparent: true,
+    backgroundColor: "#0000000",
+    resizable: false,
+    movable: false,
+    show: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    fullscreen: false,
+
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      backgroundThrottling: false,
+    },
+  });
+
+  toolbarWindow = window;
+
+  window.on("closed", () => {
+    if (toolbarWindow === window) {
+      toolbarWindow = null;
+    }
+  });
+
+  window.webContents.setWindowOpenHandler(() => ({
+    action: "deny",
+  }));
+
+  window.webContents.on("will-navigate", (event, navigationUrl) => {
+    if (!isTrustedRendererUrl(navigationUrl)) {
+      event.preventDefault();
+    }
+  });
+
+  try {
+    if (app.isPackaged) {
+      await window.loadFile(getRendererPath(), {
+        query: { window: "capture-toolbar" },
+      });
+    } else {
+      await window.loadURL(`${DEV_SERVER_URL}/?window=capture-toolbar`);
+    }
+
+    if (!window.isDestroyed()) {
+      window.show();
+      window.focus();
+    }
+  } catch (error) {
+    console.error("Failed to load capture toolbar:", error);
+    window.destroy();
+    throw error;
+  }
+};
+
+const startCaptureSession = async (): Promise<void> => {
+  if (isCaptureStarting || (toolbarWindow && !toolbarWindow.isDestroyed())) {
+    return;
+  }
+
+  isCaptureStarting = true;
+  try {
+    captureSnapshot = await captureDesktopSnapshot();
+    await createToolbarWindow();
+  } catch (error) {
+    console.error("could not start capture session:", error);
+
+    captureSnapshot = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  } finally {
+    isCaptureStarting = false;
+  }
+};
+
+const captureDesktopSnapshot = async (): Promise<string> => {
+  const display = screen.getPrimaryDisplay();
+
+  if (mainWindow && !mainWindow.isDestroyed) {
+    mainWindow.hide();
+  }
+
+  await new Promise<void>((resolve) => setTimeout(resolve, 150));
+
+  const scaleFactor = display.scaleFactor;
+  const { width, height } = display.bounds;
+
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: {
+      width: Math.round(width * scaleFactor),
+      height: Math.round(height * scaleFactor),
+    },
+  });
+
+  const source =
+    sources.find((item) => item.display_id === String(display.id)) ??
+    sources.find((item) => /^entire screen$/i.test(item.name.trim())) ??
+    sources[0];
+
+  if (!source || source.thumbnail.isEmpty()) {
+    throw new Error("Could not capture the desktop");
+  }
+
+  const thumbnailSize = source.thumbnail.getSize();
+
+  console.log("Capture diagnostics:", {
+    displayId: display.id,
+    displayBounds: display.bounds,
+    scaleFactor: display.scaleFactor,
+    sourceName: source.name,
+    sourceDisplayId: source.display_id,
+    thumbnailSize,
+  });
+
+  return source.thumbnail.toDataURL();
 };
 
 ipcMain.handle("get-platform", (event) => {
@@ -228,10 +377,62 @@ ipcMain.handle("show-window", (event) => {
   window.show();
 });
 
+ipcMain.handle("get-capture-snapshot", (event) => {
+  assertTrustedIpcSender(event);
+
+  if (BrowserWindow.fromWebContents(event.sender) !== toolbarWindow) {
+    throw new Error("Only the capture toolbar can request the snapshot");
+  }
+
+  if (!captureSnapshot) {
+    throw new Error("No desktop snapshot is available");
+  }
+
+  return captureSnapshot;
+});
+
+ipcMain.handle("close-capture-toolbar", (event) => {
+  assertTrustedIpcSender(event);
+
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+  if (
+    !senderWindow ||
+    senderWindow.isDestroyed() ||
+    senderWindow !== toolbarWindow
+  ) {
+    throw new Error("Capture toolbar unavailable");
+  }
+  captureSnapshot = null;
+  senderWindow.close();
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 app.whenReady().then(async () => {
   app.setAppUserModelId(APP_ID);
   await createWindow();
+
+  const registered = globalShortcut.register("CommandOrControl+Shift+S", () => {
+    void startCaptureSession();
+  });
+
+  if (!registered) {
+    console.error(
+      "Could not register Ctrl+Shift+S. The shortcut may already be in use.",
+    );
+  }
+
   app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      void createWindow();
+    }
+  });
+
+  app.on("will-quit", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       void createWindow();
     }
