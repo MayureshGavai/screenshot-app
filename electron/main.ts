@@ -166,6 +166,10 @@ const createToolbarWindow = async (): Promise<void> => {
       await window.loadURL(`${DEV_SERVER_URL}/?window=capture-toolbar`);
     }
 
+    toolbarWindow.webContents.openDevTools({
+      mode: "detach",
+    });
+
     if (!window.isDestroyed()) {
       window.show();
       window.focus();

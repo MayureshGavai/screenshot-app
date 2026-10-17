@@ -672,6 +672,21 @@ kbd {
   }
 }
 
+.capture-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow: auto;
+  background: #18181b;
+  color: #ffffff;
+  cursor: default;
+  touch-action: auto;
+}
+
 html:has(.capture-overlay),
 body:has(.capture-overlay),
 body:has(.capture-overlay) #root {
@@ -973,4 +988,44 @@ body:has(.capture-overlay) #root {
 .capture-toolbar__dropdown button:hover,
 .capture-toolbar__dropdown button[aria-selected="true"] {
   background: var(--surface-hover);
+}
+
+.capture-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.capture-preview__header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.capture-preview__header button {
+  padding: 8px 12px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: #27272a;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.capture-preview__image-container {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #27272a;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.capture-preview__image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }

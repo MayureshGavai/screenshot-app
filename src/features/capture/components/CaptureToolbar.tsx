@@ -29,6 +29,9 @@ const CaptureToolbar = () => {
   const [isSelecting, setIsSelecting] = useState(false);
   const [isPointerInsideSelection, setIsPointerInsideSelection] =
     useState(false);
+  const [croppedImage, setCroppedImage] = useState<string | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropError, setCropError] = useState("");
 
   const overlayRef = useRef<HTMLElement>(null);
   const startPointRef = useRef<Point | null>(null);
@@ -298,7 +301,11 @@ const CaptureToolbar = () => {
     });
   };
 
-  const handleConfirmSelection = () => {
+  const handleConfirmSelection = async () => {
+    if (isCropping || !snapshot) {
+      return;
+    }
+
     if (mode === "rectangle") {
       if (
         !selection ||
@@ -307,12 +314,29 @@ const CaptureToolbar = () => {
       ) {
         return;
       }
-
-      console.log("Confirm rectangle:", selection);
-      return;
     }
 
-    console.log("Confirm full screen");
+    setIsCropping(true);
+    setCropError("");
+
+    try {
+      if (mode === "rectangle" && selection) {
+        const result = await cropImage(snapshot, selection);
+        setCroppedImage(result);
+      } else {
+        setCroppedImage(snapshot);
+      }
+      console.log(
+        "Cropped image:",
+        mode === "rectangle" ? "rectangle" : "full screen",
+      );
+      console.log("Screenshot image generated successfully.");
+    } catch (error) {
+      console.error("Failed to crop screenshot:", error);
+      setCropError("Could not generate the screenshot. Please try again.");
+    } finally {
+      setIsCropping(false);
+    }
   };
 
   const getConfirmButtonPosition = (currentSelection: Selection) => {
@@ -353,6 +377,13 @@ const CaptureToolbar = () => {
     };
   };
 
+  const handleBackToSelection = () => {
+    console.log("Back to selection clicked");
+    setCroppedImage(null);
+    setCropError("");
+    setIsCropping(false);
+  };
+
   return (
     <main
       ref={overlayRef}
@@ -363,151 +394,253 @@ const CaptureToolbar = () => {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
     >
-      {snapshot && (
-        <div
-          className="capture-overlay__snapshot"
-          style={{ backgroundImage: `url("${snapshot}")` }}
-        />
-      )}
-      <div className="capture-overlay__backdrop" />
+      {croppedImage ? (
+        <div className="capture-preview">
+          <div className="capture-preview__header">
+            <h2>Screenshot Preview</h2>
 
-      {mode === "rectangle" && selection && snapshot && (
-        <div
-          className="capture-overlay__selection-reveal"
-          style={{
-            left: selection.x,
-            top: selection.y,
-            width: selection.width,
-            height: selection.height,
-            backgroundImage: `url("${snapshot}")`,
-            backgroundPosition: `-${selection.x}px -${selection.y}px`,
-            backgroundSize: "100vw 100vh",
-          }}
-        >
-          <div className="capture-overlay__selection-border">
-            <span
-              className="capture-overlay__handle capture-overlay__handle--top-left"
-              onPointerDown={(event) => handleResizeStart(event, "top-left")}
-            />
-            <span
-              className="capture-overlay__handle capture-overlay__handle--top-right"
-              onPointerDown={(event) => handleResizeStart(event, "top-right")}
-            />
-            <span
-              className="capture-overlay__handle capture-overlay__handle--bottom-left"
-              onPointerDown={(event) => handleResizeStart(event, "bottom-left")}
-            />
-            <span
-              className="capture-overlay__handle capture-overlay__handle--bottom-right"
-              onPointerDown={(event) =>
-                handleResizeStart(event, "bottom-right")
-              }
+            <button type="button" onClick={handleBackToSelection}>
+              Back to Selection
+            </button>
+          </div>
+
+          <div className="capture-preview__image-container">
+            <img
+              src={croppedImage}
+              alt="Cropped screenshot preview"
+              className="capture-preview__image"
             />
           </div>
+
+          <p>
+            Image dimensions:{" "}
+            {selection
+              ? `${Math.round((selection.width * 1366) / 1041)} × ${Math.round((selection.height * 768) / 720)} px`
+              : "Full screen"}
+          </p>
         </div>
-      )}
-
-      {mode === "rectangle" && selection && snapshot && (
-        <button
-          type="button"
-          className="capture-overlay__confirm"
-          aria-label="Confirm selection"
-          title="Confirm selection"
-          style={getConfirmButtonPosition(selection)}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          onClick={handleConfirmSelection}
-        >
-          <Check size={19} />
-        </button>
-      )}
-
-      {captureError && (
-        <div className="capture-overlay__error" role="alert">
-          {captureError}
-        </div>
-      )}
-
-      <section
-        className="capture-toolbar"
-        aria-label="Screenshot capture toolbar"
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerMove={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-      >
-        <div className="capture-toolbar__logo" aria-label="Screenshot App">
-          <Aperture size={21} />
-        </div>
-
-        <div className="capture-toolbar__mode-wrapper">
-          <button
-            type="button"
-            className="capture-toolbar__mode"
-            aria-expanded={isOpen}
-            aria-haspopup="listbox"
-            onClick={() => setIsOpen((open) => !open)}
-          >
-            {mode === "rectangle" ? <Crop size={17} /> : <Monitor size={17} />}
-
-            <span>{mode === "rectangle" ? "Rectangle" : "Screen"}</span>
-            <ChevronDown size={15} className={isOpen ? "is-rotated" : ""} />
-          </button>
-
-          {isOpen && (
-            <div className="capture-toolbar__dropdown" role="listbox">
-              <button
-                type="button"
-                role="option"
-                aria-selected={mode === "rectangle"}
-                onClick={() => handleModeChange("rectangle")}
-              >
-                <Crop size={17} />
-                <span>Rectangle</span>
-                {mode === "rectangle" && <Check size={15} />}
-              </button>
-
-              <button
-                type="button"
-                role="option"
-                aria-selected={mode === "screen"}
-                onClick={() => handleModeChange("screen")}
-              >
-                <Monitor size={17} />
-                <span>Screen</span>
-                {mode === "screen" && <Check size={15} />}
-              </button>
+      ) : (
+        <>
+          {snapshot && (
+            <div
+              className="capture-overlay__snapshot"
+              style={{ backgroundImage: `url("${snapshot}")` }}
+            />
+          )}
+          <div className="capture-overlay__backdrop" />
+          {mode === "rectangle" && selection && snapshot && (
+            <div
+              className="capture-overlay__selection-reveal"
+              style={{
+                left: selection.x,
+                top: selection.y,
+                width: selection.width,
+                height: selection.height,
+                backgroundImage: `url("${snapshot}")`,
+                backgroundPosition: `-${selection.x}px -${selection.y}px`,
+                backgroundSize: "100vw 100vh",
+              }}
+            >
+              <div className="capture-overlay__selection-border">
+                <span
+                  className="capture-overlay__handle capture-overlay__handle--top-left"
+                  onPointerDown={(event) =>
+                    handleResizeStart(event, "top-left")
+                  }
+                />
+                <span
+                  className="capture-overlay__handle capture-overlay__handle--top-right"
+                  onPointerDown={(event) =>
+                    handleResizeStart(event, "top-right")
+                  }
+                />
+                <span
+                  className="capture-overlay__handle capture-overlay__handle--bottom-left"
+                  onPointerDown={(event) =>
+                    handleResizeStart(event, "bottom-left")
+                  }
+                />
+                <span
+                  className="capture-overlay__handle capture-overlay__handle--bottom-right"
+                  onPointerDown={(event) =>
+                    handleResizeStart(event, "bottom-right")
+                  }
+                />
+              </div>
             </div>
           )}
-        </div>
 
-        <div className="capture-toolbar__divider" />
+          {mode === "rectangle" && selection && snapshot && (
+            <button
+              type="button"
+              className="capture-overlay__confirm"
+              aria-label="Confirm selection"
+              title="Confirm selection"
+              style={getConfirmButtonPosition(selection)}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={handleConfirmSelection}
+            >
+              <Check size={19} />
+            </button>
+          )}
 
-        {mode === "screen" && (
-          <button
-            type="button"
-            className="capture-toolbar__confirm"
-            aria-label="Confirm full screen"
-            title="Confirm full screen"
-            onClick={handleConfirmSelection}
+          {captureError && (
+            <div className="capture-overlay__error" role="alert">
+              {captureError}
+            </div>
+          )}
+
+          <section
+            className="capture-toolbar"
+            aria-label="Screenshot capture toolbar"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
           >
-            <Check size={19} />
-          </button>
-        )}
+            <div className="capture-toolbar__logo" aria-label="Screenshot App">
+              <Aperture size={21} />
+            </div>
 
-        <button
-          type="button"
-          className="capture-toolbar__close"
-          aria-label="Cancel capture"
-          title="Cancel capture"
-          onClick={handleClose}
-        >
-          <X size={19} />
-        </button>
-      </section>
+            <div className="capture-toolbar__mode-wrapper">
+              <button
+                type="button"
+                className="capture-toolbar__mode"
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                onClick={() => setIsOpen((open) => !open)}
+              >
+                {mode === "rectangle" ? (
+                  <Crop size={17} />
+                ) : (
+                  <Monitor size={17} />
+                )}
+
+                <span>{mode === "rectangle" ? "Rectangle" : "Screen"}</span>
+                <ChevronDown size={15} className={isOpen ? "is-rotated" : ""} />
+              </button>
+
+              {isOpen && (
+                <div className="capture-toolbar__dropdown" role="listbox">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={mode === "rectangle"}
+                    onClick={() => handleModeChange("rectangle")}
+                  >
+                    <Crop size={17} />
+                    <span>Rectangle</span>
+                    {mode === "rectangle" && <Check size={15} />}
+                  </button>
+
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={mode === "screen"}
+                    onClick={() => handleModeChange("screen")}
+                  >
+                    <Monitor size={17} />
+                    <span>Screen</span>
+                    {mode === "screen" && <Check size={15} />}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="capture-toolbar__divider" />
+
+            {mode === "screen" && (
+              <button
+                type="button"
+                className="capture-toolbar__confirm"
+                aria-label="Confirm full screen"
+                title="Confirm full screen"
+                onClick={handleConfirmSelection}
+              >
+                <Check size={19} />
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="capture-toolbar__close"
+              aria-label="Cancel capture"
+              title="Cancel capture"
+              onClick={handleClose}
+            >
+              <X size={19} />
+            </button>
+          </section>
+        </>
+      )}
     </main>
   );
 };
 
 export default CaptureToolbar;
+
+const cropImage = (imageUrl: string, selection: Selection): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => {
+      console.log("Snapshot dimensions:", {
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+
+      console.log("Overlay dimensions:", {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+
+      console.log("Selected rectangle:", selection);
+
+      const scaleX = image.naturalWidth / window.innerWidth;
+      const scaleY = image.naturalHeight / window.innerHeight;
+
+      const sourceX = Math.round(selection.x * scaleX);
+      const sourceY = Math.round(selection.y * scaleY);
+      const sourceWidth = Math.round(selection.width * scaleX);
+      const sourceHeight = Math.round(selection.height * scaleY);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = sourceWidth;
+      canvas.height = sourceHeight;
+
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        reject(new Error("Could not create the crop canvas."));
+        return;
+      }
+
+      console.log("Final crop dimensions:", {
+        width: canvas.width,
+        height: canvas.height,
+      });
+
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight,
+      );
+
+      resolve(canvas.toDataURL("image/png"));
+    };
+
+    image.onerror = () => {
+      reject(new Error("Could not load the screenshot for cropping."));
+    };
+
+    image.src = imageUrl;
+  });
+};
