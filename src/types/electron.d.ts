@@ -20,6 +20,10 @@ declare global {
       showWindow: () => Promise<void>;
       closeCaptureToolbar: () => Promise<void>;
       getCaptureSnapshot: () => Promise<string>;
+      openScreenshotEditor: (dataUrl: string) => Promise<{
+        success: boolean;
+      }>;
+      onScreenshotReady: (callback: (dataUrl: string) => void) => () => void;
     };
   }
 }

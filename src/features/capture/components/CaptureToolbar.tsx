@@ -306,34 +306,41 @@ const CaptureToolbar = () => {
       return;
     }
 
-    if (mode === "rectangle") {
-      if (
-        !selection ||
+    if (
+      mode === "rectangle" &&
+      (!selection ||
         selection.width < MIN_SELECTION_SIZE ||
-        selection.height < MIN_SELECTION_SIZE
-      ) {
-        return;
-      }
+        selection.height < MIN_SELECTION_SIZE)
+    ) {
+      return;
     }
 
     setIsCropping(true);
     setCropError("");
 
     try {
+      let result: string;
+
       if (mode === "rectangle" && selection) {
-        const result = await cropImage(snapshot, selection);
-        setCroppedImage(result);
+        result = await cropImage(snapshot, selection);
       } else {
-        setCroppedImage(snapshot);
+        // Screen mode uses the complete desktop snapshot.
+        result = snapshot;
       }
-      console.log(
-        "Cropped image:",
-        mode === "rectangle" ? "rectangle" : "full screen",
-      );
-      console.log("Screenshot image generated successfully.");
+
+      if (!result || !result.startsWith("data:image/png;base64,")) {
+        throw new Error("Could not generate a valid PNG screenshot.");
+      }
+
+      console.log("Opening screenshot editor...");
+      console.log("Screenshot data length:", result.length);
+
+      const response = await window.electronAPI.openScreenshotEditor(result);
+
+      console.log("Screenshot editor response:", response);
     } catch (error) {
-      console.error("Failed to crop screenshot:", error);
-      setCropError("Could not generate the screenshot. Please try again.");
+      console.error("Failed to open screenshot editor:", error);
+      setCropError("Could not open the screenshot editor. Please try again.");
     } finally {
       setIsCropping(false);
     }

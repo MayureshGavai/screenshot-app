@@ -11,4 +11,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showWindow: () => ipcRenderer.invoke("show-window"),
   closeCaptureToolbar: () => ipcRenderer.invoke("close-capture-toolbar"),
   getCaptureSnapshot: () => ipcRenderer.invoke("get-capture-snapshot"),
+  openScreenshotEditor: (dataUrl: string) =>
+    ipcRenderer.invoke("open-screenshot-editor", dataUrl),
+  onScreenshotReady: (callback: (dataUrl: string) => void) => {
+    const listner = (_event: Electron.IpcRendererEvent, dataUrl: string) => {
+      callback(dataUrl);
+    };
+
+    ipcRenderer.on("screenshot-ready", listner);
+    return () => {
+      ipcRenderer.removeListener("screenshot-ready", listner);
+    };
+  },
 });

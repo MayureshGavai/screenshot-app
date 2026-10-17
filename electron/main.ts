@@ -384,6 +384,43 @@ ipcMain.handle("get-capture-snapshot", (event) => {
   return captureSnapshot;
 });
 
+ipcMain.handle("open-screenshot-editor", (event, dataUrl: unknown) => {
+  assertTrustedIpcSender(event);
+
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+  if (!senderWindow || senderWindow !== toolbarWindow) {
+    throw new Error("Only the capture toolbar can submit a screenshot");
+  }
+
+  if (
+    typeof dataUrl !== "string" ||
+    !dataUrl.startsWith("data:image/png;base64,") ||
+    dataUrl.length > Math.ceil((MAX_PNG_BYTES * 4) / 3) + 100
+  ) {
+    throw new Error("Invalid or oversized screenshot");
+  }
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    throw new Error("Application window is unavailable");
+  }
+
+  const editorWindow = mainWindow;
+
+  // Clear the capture session and close the full-screen overlay.
+  captureSnapshot = null;
+  senderWindow.close();
+
+  // Show the normal Electron application window.
+  editorWindow.show();
+  editorWindow.focus();
+
+  // Deliver the generated screenshot to the React application.
+  editorWindow.webContents.send("screenshot-ready", dataUrl);
+
+  return { success: true };
+});
+
 ipcMain.handle("close-capture-toolbar", (event) => {
   assertTrustedIpcSender(event);
 
