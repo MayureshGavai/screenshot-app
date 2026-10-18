@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import { type EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
+import { toast } from "sonner";
 
 type ScreenshotEditorProps = {
   screenshot: string;
@@ -22,11 +23,11 @@ const ScreenshotEditor = ({
 }: ScreenshotEditorProps) => {
   const [activeTool, setActiveTool] = useState<EditorTool>("select");
   const [isCopying, setIsCopying] = useState(false);
-  const [message, setMessage] = useState("");
+  // const [message, setMessage] = useState("");
 
   const handleCopy = async () => {
     setIsCopying(true);
-    setMessage("");
+    // setMessage("");
 
     try {
       const response = await fetch(screenshot);
@@ -40,17 +41,17 @@ const ScreenshotEditor = ({
         new ClipboardItem({ "image/png": blob }),
       ]);
 
-      setMessage("Screenshot copied to clipboard.");
+      toast.message("Screenshot copied to clipboard.");
     } catch (error) {
       console.error("Failed to copy screenshot:", error);
-      setMessage("Could not copy the screenshot.");
+      toast.message("Could not copy the screenshot.");
     } finally {
       setIsCopying(false);
     }
   };
 
   const handleDownload = async () => {
-    setMessage("");
+    // setMessage("");
 
     try {
       const result = await window.electronAPI.saveScreenshot(screenshot);
@@ -59,11 +60,11 @@ const ScreenshotEditor = ({
         return;
       }
 
-      setMessage("Screenshot saved successfully.");
+      toast.message("Screenshot saved successfully.");
       console.log("Screenshot saved:", result.filePath);
     } catch (error) {
       console.error("Failed to save screenshot:", error);
-      setMessage("Could not save the screenshot.");
+      toast.message("Could not save the screenshot.");
     }
   };
 
@@ -73,7 +74,6 @@ const ScreenshotEditor = ({
         activeTool={activeTool}
         onToolChange={(tool) => {
           setActiveTool(tool);
-          setMessage("");
         }}
         onNewCapture={onNewCapture}
         onCopy={handleCopy}
@@ -82,15 +82,6 @@ const ScreenshotEditor = ({
         isCopying={isCopying}
         canUndo={false}
       />
-
-      {message && (
-        <div
-          role="status"
-          className="shrink-0 border-b border-border px-4 py-2 text-sm text-muted-foreground"
-        >
-          {message}
-        </div>
-      )}
 
       <section className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-4 sm:p-6">
         <img

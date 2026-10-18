@@ -3,6 +3,7 @@ import LandingPage from "./features/landing/LandingPage";
 import ScreenshotEditor from "./features/editor/ScreenshotEditor";
 import { useSystemTheme } from "./hooks/useSystemTheme";
 import CaptureToolbar from "./features/capture/components/CaptureToolbar";
+import { Toaster } from "sonner";
 
 const App = () => {
   useSystemTheme();
@@ -36,16 +37,31 @@ const App = () => {
     return <CaptureToolbar />;
   }
 
-  if (screenshot) {
-    return (
-      <ScreenshotEditor
-        screenshot={screenshot}
-        onNewCapture={handleNewCapture}
+  return (
+    <>
+      <Toaster
+        position="bottom-right"
+        richColors
+        closeButton
+        duration={2500}
+        theme="system"
+        // classNames={{
+        //   toast: "border border-border bg-card text-foreground shadow-lg",
+        //   title: "text-foreground",
+        //   description: "text-muted-foreground",
+        //   closeButton: "border-border bg-background text-foreground",
+        // }}
       />
-    );
-  }
-
-  return <LandingPage />;
+      {screenshot ? (
+        <ScreenshotEditor
+          screenshot={screenshot}
+          onNewCapture={handleNewCapture}
+        />
+      ) : (
+        <LandingPage />
+      )}
+    </>
+  );
 };
 
 export default App;
