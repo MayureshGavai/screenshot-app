@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   hideWindow: () => ipcRenderer.invoke("hide-window"),
   showWindow: () => ipcRenderer.invoke("show-window"),
   closeCaptureToolbar: () => ipcRenderer.invoke("close-capture-toolbar"),
+  startNewCapture: () => ipcRenderer.invoke("start-new-capture"),
   getCaptureSnapshot: () => ipcRenderer.invoke("get-capture-snapshot"),
   openScreenshotEditor: (dataUrl: string) =>
     ipcRenderer.invoke("open-screenshot-editor", dataUrl),

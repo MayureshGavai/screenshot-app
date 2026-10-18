@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import LandingPage from "./features/landing/LandingPage";
-import ScreenshotEditor from "./features/editor/components/ScreenshotEditor";
+import ScreenshotEditor from "./features/editor/ScreenshotEditor";
 import { useSystemTheme } from "./hooks/useSystemTheme";
 import CaptureToolbar from "./features/capture/components/CaptureToolbar";
 
@@ -23,6 +23,15 @@ const App = () => {
     });
   }, [isCaptureToolbar]);
 
+  const handleNewCapture = async () => {
+    try {
+      await window.electronAPI.startNewCapture();
+      setScreenshot(null);
+    } catch (error) {
+      console.error("Failed to start a new capture:", error);
+    }
+  };
+
   if (isCaptureToolbar) {
     return <CaptureToolbar />;
   }
@@ -31,7 +40,7 @@ const App = () => {
     return (
       <ScreenshotEditor
         screenshot={screenshot}
-        onClose={() => setScreenshot(null)}
+        onNewCapture={handleNewCapture}
       />
     );
   }

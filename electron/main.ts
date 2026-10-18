@@ -206,7 +206,7 @@ const startCaptureSession = async (): Promise<void> => {
 const captureDesktopSnapshot = async (): Promise<string> => {
   const display = screen.getPrimaryDisplay();
 
-  if (mainWindow && !mainWindow.isDestroyed) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.hide();
   }
 
@@ -440,6 +440,18 @@ ipcMain.handle("close-capture-toolbar", (event) => {
     mainWindow.show();
     mainWindow.focus();
   }
+});
+
+ipcMain.handle("start-new-capture", async (event) => {
+  assertTrustedIpcSender(event);
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+  if (!senderWindow || senderWindow !== mainWindow) {
+    throw new Error("Only the main window can start a new capture");
+  }
+
+  await startCaptureSession();
+  return { success: true };
 });
 
 app.whenReady().then(async () => {
