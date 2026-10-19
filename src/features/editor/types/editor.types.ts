@@ -26,3 +26,11 @@ export type AnnotationStroke = {
   opacity: number;
   tool: "pen" | "highlighter";
 };
+
+export type AnnotationArrow = {
+  id: string;
+  start: Point;
+  end: Point;
+  color: string;
+  width: number;
+};
