@@ -1,20 +1,29 @@
 import { useRef, useState, type PointerEvent } from "react";
-import type { EditorTool, Penstroke, Point } from "../types/editor.types";
+import type {
+  AnnotationStroke,
+  EditorTool,
+  Point,
+} from "../types/editor.types";
 
 type ScreenshotCanvasProps = {
   screenshot: string;
   activeTool: EditorTool;
-  strokes: Penstroke[];
-  activeStroke: Penstroke | null;
+  strokes: AnnotationStroke[];
+  activeStroke: AnnotationStroke | null;
   penColor: string;
   penWidth: number;
-  onStartStroke: (point: Point, color: string, width: number) => void;
+  onStartStroke: (
+    point: Point,
+    color: string,
+    width: number,
+    tool: "pen" | "highlighter",
+  ) => void;
   onContinueStroke: (point: Point) => void;
   onFinishStroke: () => void;
   onCancelStroke: () => void;
 };
 
-const strokeToPath = (stroke: Penstroke) =>
+const strokeToPath = (stroke: AnnotationStroke) =>
   stroke.points
     .map((point, index) => {
       const command = index === 0 ? "M" : "L";
@@ -37,7 +46,7 @@ const ScreenshotCanvas = ({
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
 
-  const isPenActive = activeTool === "pen";
+  const isDrawing = activeTool === "pen" || activeTool === "highlighter";
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
@@ -54,21 +63,22 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if (!isPenActive || event.button !== 0) return;
+    if (
+      (activeTool !== "pen" && activeTool !== "highlighter") ||
+      event.button !== 0
+    )
+      return;
 
     const point = getPoint(event);
     if (!point) return;
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    onStartStroke(point, penColor, penWidth);
+    onStartStroke(point, penColor, penWidth, activeTool);
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
-    if (
-      !isPenActive ||
-      !event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
+    if (!isDrawing || !event.currentTarget.hasPointerCapture(event.pointerId)) {
       return;
     }
 
@@ -116,9 +126,7 @@ const ScreenshotCanvas = ({
             preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full ${
-              isPenActive
-                ? "touch-none cursor-crosshair"
-                : "pointer-events-none"
+              isDrawing ? "touch-none cursor-crosshair" : "pointer-events-none"
             }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -126,7 +134,7 @@ const ScreenshotCanvas = ({
             onPointerCancel={handlePointerCancel}
           >
             {visibleStrokes.map((stroke) => (
-              <g key={stroke.id}>
+              <g key={stroke.id} opacity={stroke.opacity}>
                 {stroke.points.length === 1 ? (
                   <circle
                     cx={stroke.points[0].x}

@@ -18,9 +18,11 @@ export type Point = {
   y: number;
 };
 
-export type Penstroke = {
+export type AnnotationStroke = {
   id: string;
   points: Point[];
   color: string;
   width: number;
+  opacity: number;
+  tool: "pen" | "highlighter";
 };

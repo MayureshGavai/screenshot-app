@@ -1,17 +1,23 @@
 import { useCallback, useState } from "react";
-import type { Penstroke, Point } from "../types/editor.types";
+import type { AnnotationStroke, Point } from "../types/editor.types";
+
+type StrokeTool = AnnotationStroke["tool"];
 
 export const useAnnotations = () => {
-  const [strokes, setStrokes] = useState<Penstroke[]>([]);
-  const [activeStroke, setActiveStroke] = useState<Penstroke | null>(null);
+  const [strokes, setStrokes] = useState<AnnotationStroke[]>([]);
+  const [activeStroke, setActiveStroke] = useState<AnnotationStroke | null>(
+    null,
+  );
 
   const startStroke = useCallback(
-    (point: Point, color: string, width: number) => {
+    (point: Point, color: string, width: number, tool: StrokeTool) => {
       setActiveStroke({
         id: crypto.randomUUID(),
         points: [point],
         color,
         width,
+        tool,
+        opacity: tool === "highlighter" ? 0.35 : 1,
       });
     },
     [],

@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { type EditorTool } from "./types/editor.types";
+import type { EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
 import { toast } from "sonner";
 import { useAnnotations } from "./hooks/useAnnotations";
@@ -28,6 +28,9 @@ const ScreenshotEditor = ({
   const [isCopying, setIsCopying] = useState(false);
   const [penColor, setPenColor] = useState("#ff0000");
   const [penWidth, setPenWidth] = useState(4);
+
+  const [highlighterColor, setHighlighterColor] = useState("#ff0000");
+  const [highlighterWidth, setHighlighterWidth] = useState(20);
 
   const {
     strokes,
@@ -98,12 +101,17 @@ const ScreenshotEditor = ({
         canUndo={canUndo}
       />
 
-      {activeTool === "pen" && (
+      {(activeTool === "pen" || activeTool === "highlighter") && (
         <EditorOptions
-          color={penColor}
-          width={penWidth}
-          onColorChange={setPenColor}
-          onWidthChange={setPenWidth}
+          tool={activeTool}
+          color={activeTool === "highlighter" ? highlighterColor : penColor}
+          width={activeTool === "highlighter" ? highlighterWidth : penWidth}
+          onColorChange={
+            activeTool === "highlighter" ? setHighlighterColor : setPenColor
+          }
+          onWidthChange={
+            activeTool === "highlighter" ? setHighlighterWidth : setPenWidth
+          }
         />
       )}
 
@@ -112,8 +120,8 @@ const ScreenshotEditor = ({
         activeTool={activeTool}
         strokes={strokes}
         activeStroke={activeStroke}
-        penColor={penColor}
-        penWidth={penWidth}
+        penColor={activeTool === "highlighter" ? highlighterColor : penColor}
+        penWidth={activeTool === "highlighter" ? highlighterWidth : penWidth}
         onStartStroke={startStroke}
         onContinueStroke={continueStroke}
         onFinishStroke={finishStroke}
