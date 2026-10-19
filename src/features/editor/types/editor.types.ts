@@ -12,3 +12,15 @@ export type EditorToolConfig = {
   id: EditorTool;
   label: string;
 };
+
+export type Point = {
+  x: number;
+  y: number;
+};
+
+export type Penstroke = {
+  id: string;
+  points: Point[];
+  color: string;
+  width: number;
+};

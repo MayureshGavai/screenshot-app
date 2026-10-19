@@ -11,6 +11,9 @@ import { useState } from "react";
 import { type EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
 import { toast } from "sonner";
+import { useAnnotations } from "./hooks/useAnnotations";
+import EditorOptions from "./components/EditorOptions";
+import ScreenshotCanvas from "./components/ScreenshotCanvas";
 
 type ScreenshotEditorProps = {
   screenshot: string;
@@ -23,11 +26,22 @@ const ScreenshotEditor = ({
 }: ScreenshotEditorProps) => {
   const [activeTool, setActiveTool] = useState<EditorTool>("select");
   const [isCopying, setIsCopying] = useState(false);
-  // const [message, setMessage] = useState("");
+  const [penColor, setPenColor] = useState("#ff0000");
+  const [penWidth, setPenWidth] = useState(4);
+
+  const {
+    strokes,
+    activeStroke,
+    startStroke,
+    continueStroke,
+    finishStroke,
+    cancelStroke,
+    undo,
+    canUndo,
+  } = useAnnotations();
 
   const handleCopy = async () => {
     setIsCopying(true);
-    // setMessage("");
 
     try {
       const response = await fetch(screenshot);
@@ -41,10 +55,10 @@ const ScreenshotEditor = ({
         new ClipboardItem({ "image/png": blob }),
       ]);
 
-      toast.message("Screenshot copied to clipboard.");
+      toast.success("Screenshot copied to clipboard.");
     } catch (error) {
       console.error("Failed to copy screenshot:", error);
-      toast.message("Could not copy the screenshot.");
+      toast.error("Could not copy the screenshot.");
     } finally {
       setIsCopying(false);
     }
@@ -56,41 +70,55 @@ const ScreenshotEditor = ({
     try {
       const result = await window.electronAPI.saveScreenshot(screenshot);
 
-      if (result.canceled) {
-        return;
-      }
+      if (result.canceled) return;
 
-      toast.message("Screenshot saved successfully.");
+      toast.success("Screenshot saved successfully.");
       console.log("Screenshot saved:", result.filePath);
     } catch (error) {
       console.error("Failed to save screenshot:", error);
-      toast.message("Could not save the screenshot.");
+      toast.error("Could not save the screenshot.");
     }
+  };
+
+  const handleUndo = () => {
+    if (!canUndo) return;
+    undo();
   };
 
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       <EditorToolbar
         activeTool={activeTool}
-        onToolChange={(tool) => {
-          setActiveTool(tool);
-        }}
+        onToolChange={setActiveTool}
         onNewCapture={onNewCapture}
         onCopy={handleCopy}
         onDownload={handleDownload}
-        onUndo={() => {}}
+        onUndo={handleUndo}
         isCopying={isCopying}
-        canUndo={false}
+        canUndo={canUndo}
       />
 
-      <section className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-4 sm:p-6">
-        <img
-          src={screenshot}
-          alt="Captured screenshot"
-          draggable={false}
-          className="block h-auto max-h-full w-auto max-w-full select-none object-contain shadow-lg"
+      {activeTool === "pen" && (
+        <EditorOptions
+          color={penColor}
+          width={penWidth}
+          onColorChange={setPenColor}
+          onWidthChange={setPenWidth}
         />
-      </section>
+      )}
+
+      <ScreenshotCanvas
+        screenshot={screenshot}
+        activeTool={activeTool}
+        strokes={strokes}
+        activeStroke={activeStroke}
+        penColor={penColor}
+        penWidth={penWidth}
+        onStartStroke={startStroke}
+        onContinueStroke={continueStroke}
+        onFinishStroke={finishStroke}
+        onCancelStroke={cancelStroke}
+      />
     </main>
   );
 };
