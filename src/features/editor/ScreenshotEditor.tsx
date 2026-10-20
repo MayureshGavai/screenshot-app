@@ -28,17 +28,25 @@ const ScreenshotEditor = ({
   const [isCopying, setIsCopying] = useState(false);
   const [penColor, setPenColor] = useState("#ff0000");
   const [penWidth, setPenWidth] = useState(4);
+  const [arrowColor, setArrowColor] = useState("#ff0000");
+  const [arrowWidth, setArrowWidth] = useState(3);
 
   const [highlighterColor, setHighlighterColor] = useState("#ff0000");
   const [highlighterWidth, setHighlighterWidth] = useState(20);
 
   const {
     strokes,
+    arrows,
     activeStroke,
+    activeArrow,
     startStroke,
     continueStroke,
     finishStroke,
     cancelStroke,
+    startArrow,
+    continueArrow,
+    finishArrow,
+    cancelArrow,
     undo,
     canUndo,
   } = useAnnotations();
@@ -115,17 +123,35 @@ const ScreenshotEditor = ({
         />
       )}
 
+      {activeTool === "arrow" && (
+        <EditorOptions
+          tool="pen"
+          color={arrowColor}
+          width={arrowWidth}
+          onColorChange={setArrowColor}
+          onWidthChange={setArrowWidth}
+        />
+      )}
+
       <ScreenshotCanvas
         screenshot={screenshot}
         activeTool={activeTool}
         strokes={strokes}
         activeStroke={activeStroke}
+        arrows={arrows}
+        activeArrow={activeArrow}
         penColor={activeTool === "highlighter" ? highlighterColor : penColor}
         penWidth={activeTool === "highlighter" ? highlighterWidth : penWidth}
+        arrowColor={arrowColor}
+        arrowWidth={arrowWidth}
         onStartStroke={startStroke}
         onContinueStroke={continueStroke}
         onFinishStroke={finishStroke}
         onCancelStroke={cancelStroke}
+        onStartArrow={startArrow}
+        onContinueArrow={continueArrow}
+        onFinishArrow={finishArrow}
+        onCancelArrow={cancelArrow}
       />
     </main>
   );
