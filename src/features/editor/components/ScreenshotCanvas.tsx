@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
   AnnotationArrow,
   AnnotationStroke,
@@ -36,7 +36,13 @@ type ScreenshotCanvasProps = {
   ) => void;
 };
 
-type DragTarget = "start" | "end";
+type DragTarget = "start" | "end" | "move";
+
+type DragOrigin = {
+  pointer: Point;
+  start: Point;
+  end: Point;
+};
 
 const HANDLE_RADIUS = 8;
 const HANDLE_HIT_RADIUS = 18;
@@ -123,12 +129,17 @@ const ScreenshotCanvas = ({
   onUpdateArrow,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
+
   const dragTargetRef = useRef<{
     arrowId: string;
     endpoint: DragTarget;
   } | null>(null);
+
+  const dragOriginRef = useRef<DragOrigin | null>(null);
+
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [selectedArrowId, setSelectedArrowId] = useState<string | null>(null);
+  const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
 
   const isDrawingStroke = activeTool === "pen" || activeTool === "highlighter";
   const isDrawingArrow = activeTool === "arrow";
@@ -136,6 +147,7 @@ const ScreenshotCanvas = ({
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
+
     if (!image || !imageSize.width || !imageSize.height) return null;
 
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -148,6 +160,18 @@ const ScreenshotCanvas = ({
     };
   };
 
+  const handleArrowHover = (point: Point) => {
+    const hitArrow = [...arrows]
+      .reverse()
+      .find(
+        (arrow) =>
+          distanceToSegment(point, arrow.start, arrow.end) <=
+          ARROW_HIT_DISTANCE + arrow.width / 2,
+      );
+
+    setHoveredArrowId(hitArrow?.id ?? null);
+  };
+
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
 
@@ -155,7 +179,6 @@ const ScreenshotCanvas = ({
     if (!point) return;
 
     if (activeTool === "select") {
-      // Prefer endpoint handles, then select the nearest arrow under the pointer.
       const selectedArrow = arrows.find(
         (arrow) => arrow.id === selectedArrowId,
       );
@@ -175,6 +198,35 @@ const ScreenshotCanvas = ({
             arrowId: selectedArrow.id,
             endpoint: startDistance <= endDistance ? "start" : "end",
           };
+
+          dragOriginRef.current = {
+            pointer: point,
+            start: { ...selectedArrow.start },
+            end: { ...selectedArrow.end },
+          };
+
+          return;
+        }
+
+        const isOnSelectedArrow =
+          distanceToSegment(point, selectedArrow.start, selectedArrow.end) <=
+          ARROW_HIT_DISTANCE + selectedArrow.width / 2;
+
+        if (isOnSelectedArrow) {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+
+          dragTargetRef.current = {
+            arrowId: selectedArrow.id,
+            endpoint: "move",
+          };
+
+          dragOriginRef.current = {
+            pointer: point,
+            start: { ...selectedArrow.start },
+            end: { ...selectedArrow.end },
+          };
+
           return;
         }
       }
@@ -190,9 +242,9 @@ const ScreenshotCanvas = ({
       setSelectedArrowId(hitArrow?.id ?? null);
 
       if (hitArrow) {
-        // Selection is handled on this click; drag handles on a subsequent gesture.
         event.preventDefault();
       }
+
       return;
     }
 
@@ -204,7 +256,6 @@ const ScreenshotCanvas = ({
 
     if (isDrawingArrow) {
       onStartArrow(point, arrowColor, arrowWidth);
-      return;
     } else {
       onStartStroke(point, penColor, penWidth, activeTool);
     }
@@ -214,12 +265,36 @@ const ScreenshotCanvas = ({
     const point = getPoint(event);
     if (!point) return;
 
+    if (activeTool === "select" && !dragTargetRef.current) {
+      handleArrowHover(point);
+    }
+
     const dragTarget = dragTargetRef.current;
 
     if (dragTarget) {
-      onUpdateArrow(dragTarget.arrowId, {
-        [dragTarget.endpoint]: point,
-      });
+      if (dragTarget.endpoint === "move") {
+        const origin = dragOriginRef.current;
+        if (!origin) return;
+
+        const dx = point.x - origin.pointer.x;
+        const dy = point.y - origin.pointer.y;
+
+        onUpdateArrow(dragTarget.arrowId, {
+          start: {
+            x: origin.start.x + dx,
+            y: origin.start.y + dy,
+          },
+          end: {
+            x: origin.end.x + dx,
+            y: origin.end.y + dy,
+          },
+        });
+      } else {
+        onUpdateArrow(dragTarget.arrowId, {
+          [dragTarget.endpoint]: point,
+        });
+      }
+
       return;
     }
 
@@ -238,6 +313,7 @@ const ScreenshotCanvas = ({
     }
 
     dragTargetRef.current = null;
+    dragOriginRef.current = null;
 
     if (isDrawingArrow) {
       onFinishArrow();
@@ -252,6 +328,7 @@ const ScreenshotCanvas = ({
     }
 
     dragTargetRef.current = null;
+    dragOriginRef.current = null;
 
     if (isDrawingArrow) {
       onCancelArrow();
@@ -259,6 +336,13 @@ const ScreenshotCanvas = ({
       onCancelStroke();
     }
   };
+
+  useEffect(() => {
+    if (activeTool !== "select") {
+      setHoveredArrowId(null);
+      setSelectedArrowId(null);
+    }
+  }, [activeTool]);
 
   const visibleStrokes = activeStroke ? [...strokes, activeStroke] : strokes;
   const visibleArrows = activeArrow ? [...arrows, activeArrow] : arrows;
@@ -286,8 +370,13 @@ const ScreenshotCanvas = ({
             viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
             preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
-            className={`absolute inset-0 h-full w-full ${
-              isDrawing ? "touch-none cursor-crosshair" : "touch-none"
+            className={`absolute inset-0 h-full w-full touch-none ${
+              isDrawing
+                ? "cursor-crosshair"
+                : activeTool === "select" &&
+                    (hoveredArrowId !== null || selectedArrowId !== null)
+                  ? "cursor-pointer"
+                  : "cursor-default"
             }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -315,6 +404,7 @@ const ScreenshotCanvas = ({
                 )}
               </g>
             ))}
+
             {visibleArrows.map((arrow) => (
               <g key={arrow.id}>
                 <ArrowShape arrow={arrow} />
@@ -331,17 +421,22 @@ const ScreenshotCanvas = ({
                       strokeDasharray="4 4"
                       pointerEvents="none"
                     />
+
                     {[arrow.start, arrow.end].map((point, index) => (
-                      <circle
-                        key={index}
-                        cx={point.x}
-                        cy={point.y}
-                        r={HANDLE_RADIUS}
-                        fill="white"
-                        stroke="#2563eb"
-                        strokeWidth={2}
-                        style={{ cursor: "grab" }}
-                      />
+                      <g
+                        key={`${arrow.id}-handle-${index}`}
+                        className="text-accent"
+                      >
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r={HANDLE_RADIUS}
+                          fill="var(--background)"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ cursor: "grab" }}
+                        />
+                      </g>
                     ))}
                   </>
                 )}
