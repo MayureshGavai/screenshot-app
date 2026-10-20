@@ -30,14 +30,47 @@ type ScreenshotCanvasProps = {
   onContinueArrow: (point: Point) => void;
   onFinishArrow: () => void;
   onCancelArrow: () => void;
+  onUpdateArrow: (
+    id: string,
+    updates: Partial<Pick<AnnotationArrow, "start" | "end">>,
+  ) => void;
+};
+
+type DragTarget = "start" | "end";
+
+const HANDLE_RADIUS = 8;
+const HANDLE_HIT_RADIUS = 18;
+const ARROW_HIT_DISTANCE = 12;
+
+const distanceBetween = (a: Point, b: Point) =>
+  Math.hypot(a.x - b.x, a.y - b.y);
+
+const distanceToSegment = (point: Point, start: Point, end: Point) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) {
+    return distanceBetween(point, start);
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared,
+    ),
+  );
+
+  return distanceBetween(point, {
+    x: start.x + t * dx,
+    y: start.y + t * dy,
+  });
 };
 
 const strokeToPath = (stroke: AnnotationStroke) =>
   stroke.points
-    .map((point, index) => {
-      const command = index === 0 ? "M" : "L";
-      return `${command} ${point.x} ${point.y}`;
-    })
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
 
 const ArrowShape = ({ arrow }: { arrow: AnnotationArrow }) => {
@@ -87,9 +120,15 @@ const ScreenshotCanvas = ({
   onContinueArrow,
   onFinishArrow,
   onCancelArrow,
+  onUpdateArrow,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
+  const dragTargetRef = useRef<{
+    arrowId: string;
+    endpoint: DragTarget;
+  } | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [selectedArrowId, setSelectedArrowId] = useState<string | null>(null);
 
   const isDrawingStroke = activeTool === "pen" || activeTool === "highlighter";
   const isDrawingArrow = activeTool === "arrow";
@@ -110,31 +149,81 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0 && !isDrawing) return;
+    if (event.button !== 0) return;
 
     const point = getPoint(event);
     if (!point) return;
 
+    if (activeTool === "select") {
+      // Prefer endpoint handles, then select the nearest arrow under the pointer.
+      const selectedArrow = arrows.find(
+        (arrow) => arrow.id === selectedArrowId,
+      );
+
+      if (selectedArrow) {
+        const startDistance = distanceBetween(point, selectedArrow.start);
+        const endDistance = distanceBetween(point, selectedArrow.end);
+
+        if (
+          startDistance <= HANDLE_HIT_RADIUS ||
+          endDistance <= HANDLE_HIT_RADIUS
+        ) {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+
+          dragTargetRef.current = {
+            arrowId: selectedArrow.id,
+            endpoint: startDistance <= endDistance ? "start" : "end",
+          };
+          return;
+        }
+      }
+
+      const hitArrow = [...arrows]
+        .reverse()
+        .find(
+          (arrow) =>
+            distanceToSegment(point, arrow.start, arrow.end) <=
+            ARROW_HIT_DISTANCE + arrow.width / 2,
+        );
+
+      setSelectedArrowId(hitArrow?.id ?? null);
+
+      if (hitArrow) {
+        // Selection is handled on this click; drag handles on a subsequent gesture.
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (!isDrawing) return;
+
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedArrowId(null);
 
     if (isDrawingArrow) {
       onStartArrow(point, arrowColor, arrowWidth);
       return;
-    }
-
-    if (activeTool === "pen" || activeTool === "highlighter") {
+    } else {
       onStartStroke(point, penColor, penWidth, activeTool);
     }
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+    const point = getPoint(event);
+    if (!point) return;
+
+    const dragTarget = dragTargetRef.current;
+
+    if (dragTarget) {
+      onUpdateArrow(dragTarget.arrowId, {
+        [dragTarget.endpoint]: point,
+      });
       return;
     }
 
-    const point = getPoint(event);
-    if (!point) return;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
 
     if (isDrawingArrow) {
       onContinueArrow(point);
@@ -144,11 +233,11 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerUp = (event: PointerEvent<SVGSVGElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-      return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    dragTargetRef.current = null;
 
     if (isDrawingArrow) {
       onFinishArrow();
@@ -158,9 +247,11 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerCancel = (event: PointerEvent<SVGSVGElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-      return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
+
+    dragTargetRef.current = null;
 
     if (isDrawingArrow) {
       onCancelArrow();
@@ -171,6 +262,7 @@ const ScreenshotCanvas = ({
 
   const visibleStrokes = activeStroke ? [...strokes, activeStroke] : strokes;
   const visibleArrows = activeArrow ? [...arrows, activeArrow] : arrows;
+  const selectedArrow = arrows.find((arrow) => arrow.id === selectedArrowId);
 
   return (
     <section className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-4 sm:p-6">
@@ -181,10 +273,9 @@ const ScreenshotCanvas = ({
           alt="Captured screenshot"
           draggable={false}
           onLoad={(event) => {
-            const image = event.currentTarget;
             setImageSize({
-              width: image.naturalWidth,
-              height: image.naturalHeight,
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
             });
           }}
           className="block h-auto max-h-full max-w-full select-none object-contain"
@@ -196,7 +287,7 @@ const ScreenshotCanvas = ({
             preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full ${
-              isDrawing ? "touch-none cursor-crosshair" : "pointer-events-none"
+              isDrawing ? "touch-none cursor-crosshair" : "touch-none"
             }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -225,7 +316,36 @@ const ScreenshotCanvas = ({
               </g>
             ))}
             {visibleArrows.map((arrow) => (
-              <ArrowShape key={arrow.id} arrow={arrow} />
+              <g key={arrow.id}>
+                <ArrowShape arrow={arrow} />
+
+                {activeTool === "select" && arrow.id === selectedArrowId && (
+                  <>
+                    <line
+                      x1={arrow.start.x}
+                      y1={arrow.start.y}
+                      x2={arrow.end.x}
+                      y2={arrow.end.y}
+                      stroke="currentColor"
+                      strokeOpacity={0.4}
+                      strokeDasharray="4 4"
+                      pointerEvents="none"
+                    />
+                    {[arrow.start, arrow.end].map((point, index) => (
+                      <circle
+                        key={index}
+                        cx={point.x}
+                        cy={point.y}
+                        r={HANDLE_RADIUS}
+                        fill="white"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        style={{ cursor: "grab" }}
+                      />
+                    ))}
+                  </>
+                )}
+              </g>
             ))}
           </svg>
         )}

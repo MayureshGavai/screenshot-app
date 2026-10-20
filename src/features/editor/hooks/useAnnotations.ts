@@ -34,6 +34,7 @@ export const useAnnotations = () => {
 
   const startStroke = useCallback(
     (point: Point, color: string, width: number, tool: StrokeTool) => {
+      setActiveArrow(null);
       setActiveStroke({
         id: crypto.randomUUID(),
         points: [point],
@@ -108,6 +109,27 @@ export const useAnnotations = () => {
     setActiveArrow(null);
   }, []);
 
+  const updateArrow = useCallback(
+    (id: string, updates: Partial<Pick<AnnotationArrow, "start" | "end">>) => {
+      setHistory((previous) =>
+        previous.map((item) => {
+          if (item.kind !== "arrow" || item.value.id !== id) {
+            return item;
+          }
+
+          return {
+            ...item,
+            value: {
+              ...item.value,
+              ...updates,
+            },
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const undo = useCallback(() => {
     setHistory((previous) => previous.slice(0, -1));
   }, []);
@@ -125,6 +147,7 @@ export const useAnnotations = () => {
     continueArrow,
     finishArrow,
     cancelArrow,
+    updateArrow,
     undo,
     canUndo: history.length > 0,
   };
