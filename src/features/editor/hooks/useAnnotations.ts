@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import type {
   AnnotationArrow,
   AnnotationStroke,
+  AnnotationRectangle,
+  AnnotationCircle,
   Point,
 } from "../types/editor.types";
 
@@ -9,7 +11,13 @@ type StrokeTool = AnnotationStroke["tool"];
 
 type AnnotationItem =
   | { kind: "stroke"; value: AnnotationStroke }
-  | { kind: "arrow"; value: AnnotationArrow };
+  | { kind: "arrow"; value: AnnotationArrow }
+  | { kind: "rectangle"; value: AnnotationRectangle }
+  | { kind: "circle"; value: AnnotationCircle };
+
+type ShapeTool = "rectangle" | "circle";
+
+type AnnotationShape = AnnotationRectangle | AnnotationCircle;
 
 export const useAnnotations = () => {
   const [history, setHistory] = useState<AnnotationItem[]>([]);
@@ -19,6 +27,12 @@ export const useAnnotations = () => {
     null,
   );
   const [activeArrow, setActiveArrow] = useState<AnnotationArrow | null>(null);
+
+  const [activeRectangle, setActiveRectangle] =
+    useState<AnnotationRectangle | null>(null);
+  const [activeCircle, setActiveCircle] = useState<AnnotationCircle | null>(
+    null,
+  );
 
   const arrowEditSnapshotRef = useRef<AnnotationItem[] | null>(null);
 
@@ -36,9 +50,25 @@ export const useAnnotations = () => {
     )
     .map((item) => item.value);
 
+  const rectangles = history
+    .filter(
+      (item): item is Extract<AnnotationItem, { kind: "rectangle" }> =>
+        item.kind === "rectangle",
+    )
+    .map((item) => item.value);
+
+  const circles = history
+    .filter(
+      (item): item is Extract<AnnotationItem, { kind: "circle" }> =>
+        item.kind === "circle",
+    )
+    .map((item) => item.value);
+
   const startStroke = useCallback(
     (point: Point, color: string, width: number, tool: StrokeTool) => {
       setActiveArrow(null);
+      setActiveRectangle(null);
+      setActiveCircle(null);
       setActiveStroke({
         id: crypto.randomUUID(),
         points: [point],
@@ -72,7 +102,8 @@ export const useAnnotations = () => {
   const startArrow = useCallback(
     (point: Point, color: string, width: number) => {
       setActiveStroke(null);
-
+      setActiveRectangle(null);
+      setActiveCircle(null);
       setActiveArrow({
         id: crypto.randomUUID(),
         start: point,
@@ -107,12 +138,87 @@ export const useAnnotations = () => {
     setActiveArrow(null);
   }, [activeArrow, history]);
 
+  const startShape = useCallback(
+    (tool: ShapeTool, point: Point, color: string, width: number) => {
+      setActiveStroke(null);
+      setActiveArrow(null);
+
+      const shape: AnnotationShape = {
+        id: crypto.randomUUID(),
+        start: point,
+        end: point,
+        color,
+        width,
+      };
+
+      setActiveRectangle(tool === "rectangle" ? shape : null);
+      setActiveCircle(tool === "circle" ? shape : null);
+    },
+    [],
+  );
+
+  const continueShape = useCallback((tool: ShapeTool, point: Point) => {
+    if (tool === "rectangle") {
+      setActiveRectangle((current) =>
+        current ? { ...current, end: point } : null,
+      );
+    } else {
+      setActiveCircle((current) =>
+        current ? { ...current, end: point } : null,
+      );
+    }
+  }, []);
+
+  const finishShape = useCallback(
+    (tool: ShapeTool) => {
+      const shape = tool === "rectangle" ? activeRectangle : activeCircle;
+
+      if (shape) {
+        const distance = Math.hypot(
+          shape.end.x - shape.start.x,
+          shape.end.y - shape.start.y,
+        );
+
+        if (distance >= 3) {
+          setUndoStack((previous) => [...previous, history]);
+          setHistory((previous) => [
+            ...previous,
+            tool === "rectangle"
+              ? {
+                  kind: "rectangle",
+                  value: shape as AnnotationRectangle,
+                }
+              : {
+                  kind: "circle",
+                  value: shape as AnnotationCircle,
+                },
+          ]);
+        }
+      }
+
+      if (tool === "rectangle") {
+        setActiveRectangle(null);
+      } else {
+        setActiveCircle(null);
+      }
+    },
+    [activeRectangle, activeCircle, history],
+  );
+
   const cancelStroke = useCallback(() => {
     setActiveStroke(null);
   }, []);
 
   const cancelArrow = useCallback(() => {
     setActiveArrow(null);
+  }, []);
+
+  const cancelShape = useCallback((tool: ShapeTool) => {
+    if (tool === "rectangle") {
+      setActiveRectangle(null);
+    } else {
+      setActiveCircle(null);
+    }
   }, []);
 
   const beginArrowEdit = useCallback(() => {
@@ -149,31 +255,21 @@ export const useAnnotations = () => {
 
     arrowEditSnapshotRef.current = null;
 
-    const originalArrowGeometry = originalHistory
-      .filter(
-        (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
-          item.kind === "arrow",
-      )
-      .map(({ value }) => ({
-        id: value.id,
-        start: value.start,
-        end: value.end,
-      }));
-
-    const currentArrowGeometry = history
-      .filter(
-        (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
-          item.kind === "arrow",
-      )
-      .map(({ value }) => ({
-        id: value.id,
-        start: value.start,
-        end: value.end,
-      }));
+    const getArrowGeometry = (items: AnnotationItem[]) =>
+      items
+        .filter(
+          (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
+            item.kind === "arrow",
+        )
+        .map(({ value }) => ({
+          id: value.id,
+          start: value.start,
+          end: value.end,
+        }));
 
     const changed =
-      JSON.stringify(originalArrowGeometry) !==
-      JSON.stringify(currentArrowGeometry);
+      JSON.stringify(getArrowGeometry(originalHistory)) !==
+      JSON.stringify(getArrowGeometry(history));
 
     if (changed) {
       setUndoStack((previous) => [...previous, originalHistory]);
@@ -195,8 +291,12 @@ export const useAnnotations = () => {
   return {
     strokes,
     arrows,
+    rectangles,
+    circles,
     activeStroke,
     activeArrow,
+    activeRectangle,
+    activeCircle,
     startStroke,
     continueStroke,
     finishStroke,
@@ -206,6 +306,10 @@ export const useAnnotations = () => {
     finishArrow,
     cancelArrow,
     updateArrow,
+    startShape,
+    continueShape,
+    finishShape,
+    cancelShape,
     beginArrowEdit,
     finishArrowEdit,
     undo,

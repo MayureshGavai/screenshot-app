@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
   AnnotationArrow,
+  AnnotationCircle,
+  AnnotationRectangle,
   AnnotationStroke,
   EditorTool,
   Point,
@@ -13,6 +15,10 @@ type ScreenshotCanvasProps = {
   activeStroke: AnnotationStroke | null;
   arrows: AnnotationArrow[];
   activeArrow: AnnotationArrow | null;
+  rectangles: AnnotationRectangle[];
+  activeRectangle: AnnotationRectangle | null;
+  circles: AnnotationCircle[];
+  activeCircle: AnnotationCircle | null;
   penColor: string;
   penWidth: number;
   arrowColor: string;
@@ -30,6 +36,15 @@ type ScreenshotCanvasProps = {
   onContinueArrow: (point: Point) => void;
   onFinishArrow: () => void;
   onCancelArrow: () => void;
+  onStartShape: (
+    tool: "rectangle" | "circle",
+    point: Point,
+    color: string,
+    width: number,
+  ) => void;
+  onContinueShape: (tool: "rectangle" | "circle", point: Point) => void;
+  onFinishShape: (tool: "rectangle" | "circle") => void;
+  onCancelShape: (tool: "rectangle" | "circle") => void;
   onUpdateArrow: (
     id: string,
     updates: Partial<Pick<AnnotationArrow, "start" | "end">>,
@@ -81,6 +96,13 @@ const strokeToPath = (stroke: AnnotationStroke) =>
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
 
+const getShapeBounds = (shape: AnnotationRectangle | AnnotationCircle) => ({
+  x: Math.min(shape.start.x, shape.end.x),
+  y: Math.min(shape.start.y, shape.end.y),
+  width: Math.abs(shape.end.x - shape.start.x),
+  height: Math.abs(shape.end.y - shape.start.y),
+});
+
 const ArrowShape = ({ arrow }: { arrow: AnnotationArrow }) => {
   const { start, end, color, width } = arrow;
 
@@ -109,6 +131,38 @@ const ArrowShape = ({ arrow }: { arrow: AnnotationArrow }) => {
   );
 };
 
+const RectangleShape = ({ rectangle }: { rectangle: AnnotationRectangle }) => {
+  const bounds = getShapeBounds(rectangle);
+
+  return (
+    <rect
+      x={bounds.x}
+      y={bounds.y}
+      width={bounds.width}
+      height={bounds.height}
+      fill="none"
+      stroke={rectangle.color}
+      strokeWidth={rectangle.width}
+    />
+  );
+};
+
+const CircleShape = ({ circle }: { circle: AnnotationCircle }) => {
+  const bounds = getShapeBounds(circle);
+
+  return (
+    <ellipse
+      cx={bounds.x + bounds.width / 2}
+      cy={bounds.y + bounds.height / 2}
+      rx={bounds.width / 2}
+      ry={bounds.height / 2}
+      fill="none"
+      stroke={circle.color}
+      strokeWidth={circle.width}
+    />
+  );
+};
+
 const ScreenshotCanvas = ({
   screenshot,
   activeTool,
@@ -116,6 +170,10 @@ const ScreenshotCanvas = ({
   activeStroke,
   arrows,
   activeArrow,
+  rectangles,
+  activeRectangle,
+  circles,
+  activeCircle,
   penColor,
   penWidth,
   arrowColor,
@@ -128,6 +186,10 @@ const ScreenshotCanvas = ({
   onContinueArrow,
   onFinishArrow,
   onCancelArrow,
+  onStartShape,
+  onContinueShape,
+  onFinishShape,
+  onCancelShape,
   onUpdateArrow,
   onBeginArrowEdit,
   onFinishArrowEdit,
@@ -147,7 +209,8 @@ const ScreenshotCanvas = ({
 
   const isDrawingStroke = activeTool === "pen" || activeTool === "highlighter";
   const isDrawingArrow = activeTool === "arrow";
-  const isDrawing = isDrawingStroke || isDrawingArrow;
+  const isDrawingShape = activeTool === "rectangle" || activeTool === "circle";
+  const isDrawing = isDrawingStroke || isDrawingArrow || isDrawingShape;
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
@@ -264,6 +327,8 @@ const ScreenshotCanvas = ({
 
     if (isDrawingArrow) {
       onStartArrow(point, arrowColor, arrowWidth);
+    } else if (isDrawingShape) {
+      onStartShape(activeTool, point, penColor, penWidth);
     } else {
       onStartStroke(point, penColor, penWidth, activeTool);
     }
@@ -310,6 +375,8 @@ const ScreenshotCanvas = ({
 
     if (isDrawingArrow) {
       onContinueArrow(point);
+    } else if (isDrawingShape) {
+      onContinueShape(activeTool, point);
     } else if (isDrawingStroke) {
       onContinueStroke(point);
     }
@@ -332,6 +399,8 @@ const ScreenshotCanvas = ({
 
     if (isDrawingArrow) {
       onFinishArrow();
+    } else if (isDrawingShape) {
+      onFinishShape(activeTool);
     } else if (isDrawingStroke) {
       onFinishStroke();
     }
@@ -347,6 +416,8 @@ const ScreenshotCanvas = ({
 
     if (isDrawingArrow) {
       onCancelArrow();
+    } else if (isDrawingShape) {
+      onCancelShape(activeTool);
     } else if (isDrawingStroke) {
       onCancelStroke();
     }
@@ -361,6 +432,11 @@ const ScreenshotCanvas = ({
 
   const visibleStrokes = activeStroke ? [...strokes, activeStroke] : strokes;
   const visibleArrows = activeArrow ? [...arrows, activeArrow] : arrows;
+  const visibleRectangles = activeRectangle
+    ? [...rectangles, activeRectangle]
+    : rectangles;
+  const visibleCircles = activeCircle ? [...circles, activeCircle] : circles;
+
   const selectedArrow = arrows.find((arrow) => arrow.id === selectedArrowId);
 
   return (
@@ -418,6 +494,14 @@ const ScreenshotCanvas = ({
                   />
                 )}
               </g>
+            ))}
+
+            {visibleRectangles.map((rectangle) => (
+              <RectangleShape key={rectangle.id} rectangle={rectangle} />
+            ))}
+
+            {visibleCircles.map((circle) => (
+              <CircleShape key={circle.id} circle={circle} />
             ))}
 
             {visibleArrows.map((arrow) => (

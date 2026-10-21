@@ -34,3 +34,19 @@ export type AnnotationArrow = {
   color: string;
   width: number;
 };
+
+export type AnnotationRectangle = {
+  id: string;
+  start: Point;
+  end: Point;
+  color: string;
+  width: number;
+};
+
+export type AnnotationCircle = {
+  id: string;
+  start: Point;
+  end: Point;
+  color: string;
+  width: number;
+};
