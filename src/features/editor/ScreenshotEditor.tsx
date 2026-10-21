@@ -48,6 +48,8 @@ const ScreenshotEditor = ({
     finishArrow,
     cancelArrow,
     updateArrow,
+    beginArrowEdit,
+    finishArrowEdit,
     undo,
     canUndo,
   } = useAnnotations();
@@ -154,6 +156,8 @@ const ScreenshotEditor = ({
         onFinishArrow={finishArrow}
         onCancelArrow={cancelArrow}
         onUpdateArrow={updateArrow}
+        onBeginArrowEdit={beginArrowEdit}
+        onFinishArrowEdit={finishArrowEdit}
       />
     </main>
   );

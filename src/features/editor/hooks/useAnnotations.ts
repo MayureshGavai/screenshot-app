@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type {
   AnnotationArrow,
   AnnotationStroke,
@@ -13,10 +13,14 @@ type AnnotationItem =
 
 export const useAnnotations = () => {
   const [history, setHistory] = useState<AnnotationItem[]>([]);
+  const [undoStack, setUndoStack] = useState<AnnotationItem[][]>([]);
+
   const [activeStroke, setActiveStroke] = useState<AnnotationStroke | null>(
     null,
   );
   const [activeArrow, setActiveArrow] = useState<AnnotationArrow | null>(null);
+
+  const arrowEditSnapshotRef = useRef<AnnotationItem[] | null>(null);
 
   const strokes = history
     .filter(
@@ -55,6 +59,7 @@ export const useAnnotations = () => {
 
   const finishStroke = useCallback(() => {
     if (activeStroke) {
+      setUndoStack((previous) => [...previous, history]);
       setHistory((previous) => [
         ...previous,
         { kind: "stroke", value: activeStroke },
@@ -62,7 +67,7 @@ export const useAnnotations = () => {
     }
 
     setActiveStroke(null);
-  }, [activeStroke]);
+  }, [activeStroke, history]);
 
   const startArrow = useCallback(
     (point: Point, color: string, width: number) => {
@@ -91,6 +96,7 @@ export const useAnnotations = () => {
       );
 
       if (distance >= 3) {
+        setUndoStack((previous) => [...previous, history]);
         setHistory((previous) => [
           ...previous,
           { kind: "arrow", value: activeArrow },
@@ -99,7 +105,7 @@ export const useAnnotations = () => {
     }
 
     setActiveArrow(null);
-  }, [activeArrow]);
+  }, [activeArrow, history]);
 
   const cancelStroke = useCallback(() => {
     setActiveStroke(null);
@@ -108,6 +114,12 @@ export const useAnnotations = () => {
   const cancelArrow = useCallback(() => {
     setActiveArrow(null);
   }, []);
+
+  const beginArrowEdit = useCallback(() => {
+    if (arrowEditSnapshotRef.current === null) {
+      arrowEditSnapshotRef.current = history;
+    }
+  }, [history]);
 
   const updateArrow = useCallback(
     (id: string, updates: Partial<Pick<AnnotationArrow, "start" | "end">>) => {
@@ -130,9 +142,55 @@ export const useAnnotations = () => {
     [],
   );
 
+  const finishArrowEdit = useCallback(() => {
+    const originalHistory = arrowEditSnapshotRef.current;
+
+    if (originalHistory === null) return;
+
+    arrowEditSnapshotRef.current = null;
+
+    const originalArrowGeometry = originalHistory
+      .filter(
+        (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
+          item.kind === "arrow",
+      )
+      .map(({ value }) => ({
+        id: value.id,
+        start: value.start,
+        end: value.end,
+      }));
+
+    const currentArrowGeometry = history
+      .filter(
+        (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
+          item.kind === "arrow",
+      )
+      .map(({ value }) => ({
+        id: value.id,
+        start: value.start,
+        end: value.end,
+      }));
+
+    const changed =
+      JSON.stringify(originalArrowGeometry) !==
+      JSON.stringify(currentArrowGeometry);
+
+    if (changed) {
+      setUndoStack((previous) => [...previous, originalHistory]);
+    }
+  }, [history]);
+
   const undo = useCallback(() => {
-    setHistory((previous) => previous.slice(0, -1));
-  }, []);
+    if (arrowEditSnapshotRef.current !== null) return;
+
+    if (undoStack.length === 0) return;
+
+    const previousHistory = undoStack[undoStack.length - 1];
+
+    setHistory(previousHistory);
+
+    setUndoStack((previous) => previous.slice(0, -1));
+  }, [undoStack]);
 
   return {
     strokes,
@@ -148,7 +206,9 @@ export const useAnnotations = () => {
     finishArrow,
     cancelArrow,
     updateArrow,
+    beginArrowEdit,
+    finishArrowEdit,
     undo,
-    canUndo: history.length > 0,
+    canUndo: undoStack.length > 0,
   };
 };

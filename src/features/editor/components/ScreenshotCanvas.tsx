@@ -34,6 +34,8 @@ type ScreenshotCanvasProps = {
     id: string,
     updates: Partial<Pick<AnnotationArrow, "start" | "end">>,
   ) => void;
+  onBeginArrowEdit: () => void;
+  onFinishArrowEdit: () => void;
 };
 
 type DragTarget = "start" | "end" | "move";
@@ -127,6 +129,8 @@ const ScreenshotCanvas = ({
   onFinishArrow,
   onCancelArrow,
   onUpdateArrow,
+  onBeginArrowEdit,
+  onFinishArrowEdit,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -194,6 +198,8 @@ const ScreenshotCanvas = ({
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
 
+          onBeginArrowEdit();
+
           dragTargetRef.current = {
             arrowId: selectedArrow.id,
             endpoint: startDistance <= endDistance ? "start" : "end",
@@ -220,6 +226,8 @@ const ScreenshotCanvas = ({
             arrowId: selectedArrow.id,
             endpoint: "move",
           };
+
+          onBeginArrowEdit();
 
           dragOriginRef.current = {
             pointer: point,
@@ -312,8 +320,15 @@ const ScreenshotCanvas = ({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
+    const wasEditingArrow = dragTargetRef.current !== null;
+
     dragTargetRef.current = null;
     dragOriginRef.current = null;
+
+    if (wasEditingArrow) {
+      onFinishArrowEdit();
+      return;
+    }
 
     if (isDrawingArrow) {
       onFinishArrow();
