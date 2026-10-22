@@ -34,6 +34,20 @@ const ScreenshotEditor = ({
   const [highlighterColor, setHighlighterColor] = useState("#ff0000");
   const [highlighterWidth, setHighlighterWidth] = useState(20);
 
+  // Rectangle styling
+  const [rectangleColor, setRectangleColor] = useState("#ff0000");
+  const [rectangleWidth, setRectangleWidth] = useState(3);
+  const [rectangleFillEnabled, setRectangleFillEnabled] = useState(false);
+  const [rectangleFillColor, setRectangleFillColor] = useState("#ff0000");
+  const [rectangleFillOpacity, setRectangleFillOpacity] = useState(0.25);
+
+  // Circle styling
+  const [circleColor, setCircleColor] = useState("#ff0000");
+  const [circleWidth, setCircleWidth] = useState(3);
+  const [circleFillEnabled, setCircleFillEnabled] = useState(false);
+  const [circleFillColor, setCircleFillColor] = useState("#ff0000");
+  const [circleFillOpacity, setCircleFillOpacity] = useState(0.25);
+
   const {
     strokes,
     arrows,
@@ -145,6 +159,40 @@ const ScreenshotEditor = ({
         />
       )}
 
+      {/* Rectangle options */}
+      {activeTool === "rectangle" && (
+        <EditorOptions
+          tool="rectangle"
+          color={rectangleColor}
+          width={rectangleWidth}
+          onColorChange={setRectangleColor}
+          onWidthChange={setRectangleWidth}
+          fillEnabled={rectangleFillEnabled}
+          fillColor={rectangleFillColor}
+          fillOpacity={rectangleFillOpacity}
+          onFillEnabledChange={setRectangleFillEnabled}
+          onFillColorChange={setRectangleFillColor}
+          onFillOpacityChange={setRectangleFillOpacity}
+        />
+      )}
+
+      {/* Circle options */}
+      {activeTool === "circle" && (
+        <EditorOptions
+          tool="circle"
+          color={circleColor}
+          width={circleWidth}
+          onColorChange={setCircleColor}
+          onWidthChange={setCircleWidth}
+          fillEnabled={circleFillEnabled}
+          fillColor={circleFillColor}
+          fillOpacity={circleFillOpacity}
+          onFillEnabledChange={setCircleFillEnabled}
+          onFillColorChange={setCircleFillColor}
+          onFillOpacityChange={setCircleFillOpacity}
+        />
+      )}
+
       <ScreenshotCanvas
         screenshot={screenshot}
         activeTool={activeTool}
@@ -160,6 +208,23 @@ const ScreenshotEditor = ({
         penWidth={activeTool === "highlighter" ? highlighterWidth : penWidth}
         arrowColor={arrowColor}
         arrowWidth={arrowWidth}
+        shapeColor={activeTool === "rectangle" ? rectangleColor : circleColor}
+        shapeWidth={activeTool === "rectangle" ? rectangleWidth : circleWidth}
+        shapeFill={
+          activeTool === "rectangle"
+            ? rectangleFillEnabled
+              ? {
+                  color: rectangleFillColor,
+                  opacity: rectangleFillOpacity,
+                }
+              : null
+            : circleFillEnabled
+              ? {
+                  color: circleFillColor,
+                  opacity: circleFillOpacity,
+                }
+              : null
+        }
         onStartStroke={startStroke}
         onContinueStroke={continueStroke}
         onFinishStroke={finishStroke}

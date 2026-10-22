@@ -14,7 +14,8 @@ const CircleShape = ({ circle }: CircleShapeProps) => {
       cy={bounds.y + bounds.height / 2}
       rx={bounds.width / 2}
       ry={bounds.height / 2}
-      fill="none"
+      fill={circle.fill?.color ?? "none"}
+      fillOpacity={circle.fill?.opacity ?? 1}
       stroke={circle.color}
       strokeWidth={circle.width}
     />

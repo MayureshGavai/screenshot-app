@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type {
   AnnotationArrow,
   AnnotationCircle,
+  AnnotationFill,
   AnnotationRectangle,
   AnnotationStroke,
   EditorTool,
@@ -47,6 +48,9 @@ type ScreenshotCanvasProps = {
   penWidth: number;
   arrowColor: string;
   arrowWidth: number;
+  shapeColor: string;
+  shapeWidth: number;
+  shapeFill: AnnotationFill | null;
   onStartStroke: (
     point: Point,
     color: string,
@@ -69,6 +73,7 @@ type ScreenshotCanvasProps = {
     point: Point,
     color: string,
     width: number,
+    fill: AnnotationFill | null,
   ) => void;
   onContinueShape: (tool: "rectangle" | "circle", point: Point) => void;
   onUpdateShape: (
@@ -99,6 +104,9 @@ const ScreenshotCanvas = ({
   penWidth,
   arrowColor,
   arrowWidth,
+  shapeColor,
+  shapeFill,
+  shapeWidth,
   onStartStroke,
   onContinueStroke,
   onFinishStroke,
@@ -272,7 +280,7 @@ const ScreenshotCanvas = ({
     if (isDrawingArrow) {
       onStartArrow(point, arrowColor, arrowWidth);
     } else if (isDrawingShape) {
-      onStartShape(activeTool, point, penColor, penWidth);
+      onStartShape(activeTool, point, shapeColor, shapeWidth, shapeFill);
     } else {
       onStartStroke(point, penColor, penWidth, activeTool);
     }
@@ -452,11 +460,79 @@ const ScreenshotCanvas = ({
             ))}
 
             {visibleRectangles.map((rectangle) => (
-              <RectangleShape key={rectangle.id} rectangle={rectangle} />
+              <g key={rectangle.id}>
+                <RectangleShape rectangle={rectangle} />
+
+                {activeTool === "select" &&
+                  selectedAnnotation?.kind === "rectangle" &&
+                  rectangle.id === selectedAnnotation.id && (
+                    <>
+                      <rect
+                        x={Math.min(rectangle.start.x, rectangle.end.x)}
+                        y={Math.min(rectangle.start.y, rectangle.end.y)}
+                        width={Math.abs(rectangle.end.x - rectangle.start.x)}
+                        height={Math.abs(rectangle.end.y - rectangle.start.y)}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeOpacity={0.6}
+                        strokeDasharray="5 4"
+                        strokeWidth={2}
+                        pointerEvents="none"
+                      />
+
+                      {[rectangle.start, rectangle.end].map((point, index) => (
+                        <circle
+                          key={`${rectangle.id}-handle-${index}`}
+                          cx={point.x}
+                          cy={point.y}
+                          r={HANDLE_RADIUS}
+                          fill="var(--accent)"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ cursor: "grab" }}
+                        />
+                      ))}
+                    </>
+                  )}
+              </g>
             ))}
 
             {visibleCircles.map((circle) => (
-              <CircleShape key={circle.id} circle={circle} />
+              <g key={circle.id}>
+                <CircleShape circle={circle} />
+
+                {activeTool === "select" &&
+                  selectedAnnotation?.kind === "circle" &&
+                  circle.id === selectedAnnotation.id && (
+                    <>
+                      <ellipse
+                        cx={(circle.start.x + circle.end.x) / 2}
+                        cy={(circle.start.y + circle.end.y) / 2}
+                        rx={Math.abs(circle.end.x - circle.start.x) / 2}
+                        ry={Math.abs(circle.end.y - circle.start.y) / 2}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeOpacity={0.6}
+                        strokeDasharray="5 4"
+                        strokeWidth={2}
+                        pointerEvents="none"
+                      />
+
+                      {[circle.start, circle.end].map((point, index) => (
+                        <circle
+                          key={`${circle.id}-handle-${index}`}
+                          cx={point.x}
+                          cy={point.y}
+                          r={HANDLE_RADIUS}
+                          fill="var(--accent)"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ cursor: "grab" }}
+                        />
+                      ))}
+                    </>
+                  )}
+              </g>
             ))}
 
             {visibleArrows.map((arrow) => (

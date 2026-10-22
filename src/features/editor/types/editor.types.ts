@@ -18,6 +18,11 @@ export type Point = {
   y: number;
 };
 
+export type AnnotationFill = {
+  color: string;
+  opacity: number;
+};
+
 export type AnnotationStroke = {
   id: string;
   points: Point[];
@@ -41,6 +46,7 @@ export type AnnotationRectangle = {
   end: Point;
   color: string;
   width: number;
+  fill: AnnotationFill | null;
 };
 
 export type AnnotationCircle = {
@@ -49,4 +55,5 @@ export type AnnotationCircle = {
   end: Point;
   color: string;
   width: number;
+  fill: AnnotationFill | null;
 };

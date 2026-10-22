@@ -14,7 +14,8 @@ const RectangleShape = ({ rectangle }: RectangleShapeProps) => {
       y={bounds.y}
       width={bounds.width}
       height={bounds.height}
-      fill="none"
+      fill={rectangle.fill?.color ?? "none"}
+      fillOpacity={rectangle.fill?.opacity ?? 1}
       stroke={rectangle.color}
       strokeWidth={rectangle.width}
     />

@@ -5,6 +5,7 @@ import type {
   AnnotationRectangle,
   AnnotationCircle,
   Point,
+  AnnotationFill,
 } from "../types/editor.types";
 
 type StrokeTool = AnnotationStroke["tool"];
@@ -139,7 +140,13 @@ export const useAnnotations = () => {
   }, [activeArrow, history]);
 
   const startShape = useCallback(
-    (tool: ShapeTool, point: Point, color: string, width: number) => {
+    (
+      tool: ShapeTool,
+      point: Point,
+      color: string,
+      width: number,
+      fill: AnnotationFill | null,
+    ) => {
       setActiveStroke(null);
       setActiveArrow(null);
 
@@ -149,6 +156,7 @@ export const useAnnotations = () => {
         end: point,
         color,
         width,
+        fill,
       };
 
       setActiveRectangle(tool === "rectangle" ? shape : null);
