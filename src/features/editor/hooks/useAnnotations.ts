@@ -6,6 +6,7 @@ import type {
   AnnotationCircle,
   Point,
   AnnotationFill,
+  AnnotationText,
 } from "../types/editor.types";
 
 type StrokeTool = AnnotationStroke["tool"];
@@ -14,7 +15,8 @@ type AnnotationItem =
   | { kind: "stroke"; value: AnnotationStroke }
   | { kind: "arrow"; value: AnnotationArrow }
   | { kind: "rectangle"; value: AnnotationRectangle }
-  | { kind: "circle"; value: AnnotationCircle };
+  | { kind: "circle"; value: AnnotationCircle }
+  | { kind: "text"; value: AnnotationText };
 
 type ShapeTool = "rectangle" | "circle";
 
@@ -34,6 +36,8 @@ export const useAnnotations = () => {
   const [activeCircle, setActiveCircle] = useState<AnnotationCircle | null>(
     null,
   );
+
+  const [activeText, setActiveText] = useState<AnnotationText | null>(null);
 
   const editSnapshotRef = useRef<AnnotationItem[] | null>(null);
 
@@ -62,6 +66,13 @@ export const useAnnotations = () => {
     .filter(
       (item): item is Extract<AnnotationItem, { kind: "circle" }> =>
         item.kind === "circle",
+    )
+    .map((item) => item.value);
+
+  const texts = history
+    .filter(
+      (item): item is Extract<AnnotationItem, { kind: "text" }> =>
+        item.kind === "text",
     )
     .map((item) => item.value);
 
@@ -311,6 +322,61 @@ export const useAnnotations = () => {
       setUndoStack((previous) => [...previous, originalHistory]);
     }
   }, [history]);
+
+  const startText = useCallback(
+    (
+      point: Point,
+      color: string,
+      fontSize: number,
+      fontWeight: "normal" | "bold",
+    ) => {
+      setActiveStroke(null);
+      setActiveArrow(null);
+      setActiveRectangle(null);
+      setActiveCircle(null);
+
+      setActiveText({
+        id: crypto.randomUUID(),
+        x: point.x,
+        y: point.y,
+        text: "",
+        color,
+        fontSize,
+        fontWeight,
+        width: 250,
+      });
+    },
+    [],
+  );
+
+  const updateText = useCallback(
+    (id: string, updates: Partial<AnnotationText>) => {
+      setHistory((previous) =>
+        previous.map((item) =>
+          item.kind === "text" && item.value.id === id
+            ? { ...item, value: { ...item.value, ...updates } }
+            : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  const finishText = useCallback(() => {
+    if (activeText?.text.trim()) {
+      setUndoStack((previous) => [...previous, history]);
+      setHistory((previous) => [
+        ...previous,
+        { kind: "text", value: activeText },
+      ]);
+    }
+
+    setActiveText(null);
+  }, [activeText, history]);
+
+  const cancelText = useCallback(() => {
+    setActiveText(null);
+  }, []);
 
   const undo = useCallback(() => {
     if (editSnapshotRef.current !== null) return;

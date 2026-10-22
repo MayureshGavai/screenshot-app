@@ -48,6 +48,12 @@ const ScreenshotEditor = ({
   const [circleFillColor, setCircleFillColor] = useState("#ff0000");
   const [circleFillOpacity, setCircleFillOpacity] = useState(0.25);
 
+  const [textColor, setTextColor] = useState("#ff0000");
+  const [textFontSize, setTextFontSize] = useState(24);
+  const [textFontWeight, setTextFontWeight] = useState<"normal" | "bold">(
+    "normal",
+  );
+
   const {
     strokes,
     arrows,
@@ -190,6 +196,20 @@ const ScreenshotEditor = ({
           onFillEnabledChange={setCircleFillEnabled}
           onFillColorChange={setCircleFillColor}
           onFillOpacityChange={setCircleFillOpacity}
+        />
+      )}
+
+      {activeTool === "text" && (
+        <EditorOptions
+          tool="text"
+          color={textColor}
+          width={textFontSize}
+          onColorChange={setTextColor}
+          onWidthChange={setTextFontSize}
+          fontSize={textFontSize}
+          fontWeight={textFontWeight}
+          onFontSizeChange={setTextFontSize}
+          onFontWeightChange={setTextFontWeight}
         />
       )}
 

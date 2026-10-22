@@ -1,5 +1,5 @@
 type EditorOptionsProps = {
-  tool: "pen" | "highlighter" | "rectangle" | "circle";
+  tool: "pen" | "highlighter" | "rectangle" | "circle" | "text";
   color: string;
   width: number;
   onColorChange: (color: string) => void;
@@ -10,6 +10,10 @@ type EditorOptionsProps = {
   onFillEnabledChange?: (enabled: boolean) => void;
   onFillColorChange?: (color: string) => void;
   onFillOpacityChange?: (opacity: number) => void;
+  fontSize?: number;
+  fontWeight?: "normal" | "bold";
+  onFontSizeChange?: (size: number) => void;
+  onFontWeightChange?: (weight: "normal" | "bold") => void;
 };
 
 const EditorOptions = ({
@@ -24,19 +28,25 @@ const EditorOptions = ({
   onFillEnabledChange,
   onFillColorChange,
   onFillOpacityChange,
+  fontSize = 24,
+  fontWeight = "normal",
+  onFontSizeChange,
+  onFontWeightChange,
 }: EditorOptionsProps) => {
   const isHighlighter = tool === "highlighter";
 
   const isShape = tool === "rectangle" || tool === "circle";
 
   const toolLabel =
-    tool === "rectangle"
-      ? "Rectangle"
-      : tool === "circle"
-        ? "Circle"
-        : isHighlighter
-          ? "Highlighter"
-          : "Pen";
+    tool === "text"
+      ? "Text"
+      : tool === "rectangle"
+        ? "Rectangle"
+        : tool === "circle"
+          ? "Circle"
+          : isHighlighter
+            ? "Highlighter"
+            : "Pen";
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">

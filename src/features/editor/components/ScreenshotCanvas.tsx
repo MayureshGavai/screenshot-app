@@ -221,19 +221,43 @@ const ScreenshotCanvas = ({
             return;
           }
 
-          const isInsideSelected =
-            selectedAnnotation.kind === "arrow"
-              ? distanceToSegment(
+          let isInsideSelected = false;
+
+          if (selectedAnnotation.kind === "arrow") {
+            const selectedArrow = arrows.find(
+              (item) => item.id === selectedAnnotation.id,
+            );
+
+            if (selectedArrow) {
+              isInsideSelected =
+                distanceToSegment(
                   point,
-                  selectedItem.start,
-                  selectedItem.end,
+                  selectedArrow.start,
+                  selectedArrow.end,
                 ) <=
-                ARROW_HIT_DISTANCE + selectedItem.width / 2
-              : selectedAnnotation.kind === "rectangle"
-                ? isPointInsideRectangle(point, selectedItem) ||
-                  isPointNearRectangle(point, selectedItem)
-                : isPointInsideCircle(point, selectedItem) ||
-                  isPointNearCircle(point, selectedItem);
+                ARROW_HIT_DISTANCE + selectedArrow.width / 2;
+            }
+          } else if (selectedAnnotation.kind === "rectangle") {
+            const selectedRectangle = rectangles.find(
+              (item) => item.id === selectedAnnotation.id,
+            );
+
+            if (selectedRectangle) {
+              isInsideSelected =
+                isPointInsideRectangle(point, selectedRectangle) ||
+                isPointNearRectangle(point, selectedRectangle);
+            }
+          } else if (selectedAnnotation.kind === "circle") {
+            const selectedCircle = circles.find(
+              (item) => item.id === selectedAnnotation.id,
+            );
+
+            if (selectedCircle) {
+              isInsideSelected =
+                isPointInsideCircle(point, selectedCircle) ||
+                isPointNearCircle(point, selectedCircle);
+            }
+          }
 
           if (isInsideSelected) {
             event.preventDefault();

@@ -57,3 +57,14 @@ export type AnnotationCircle = {
   width: number;
   fill: AnnotationFill | null;
 };
+
+export type AnnotationText = {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  fontSize: number;
+  fontWeight: "normal" | "bold";
+  width: number;
+};
