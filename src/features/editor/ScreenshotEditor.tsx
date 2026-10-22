@@ -30,10 +30,6 @@ const ScreenshotEditor = ({
   const [penWidth, setPenWidth] = useState(4);
   const [arrowColor, setArrowColor] = useState("#ff0000");
   const [arrowWidth, setArrowWidth] = useState(3);
-  const [rectangleColor, setRectangleColor] = useState("#ff0000");
-  const [rectangleWidth, setRectangleWidth] = useState(3);
-  const [circleColor, setCircleColor] = useState("#ff0000");
-  const [circleWidth, setCircleWidth] = useState(3);
 
   const [highlighterColor, setHighlighterColor] = useState("#ff0000");
   const [highlighterWidth, setHighlighterWidth] = useState(20);
@@ -56,10 +52,11 @@ const ScreenshotEditor = ({
     finishArrow,
     cancelArrow,
     updateArrow,
-    beginArrowEdit,
-    finishArrowEdit,
+    beginEdit,
+    finishEdit,
     startShape,
     continueShape,
+    updateShape,
     finishShape,
     cancelShape,
     undo,
@@ -172,10 +169,11 @@ const ScreenshotEditor = ({
         onFinishArrow={finishArrow}
         onCancelArrow={cancelArrow}
         onUpdateArrow={updateArrow}
-        onBeginArrowEdit={beginArrowEdit}
-        onFinishArrowEdit={finishArrowEdit}
+        onBeginEdit={beginEdit}
+        onFinishEdit={finishEdit}
         onStartShape={startShape}
         onContinueShape={continueShape}
+        onUpdateShape={updateShape}
         onFinishShape={finishShape}
         onCancelShape={cancelShape}
       />

@@ -34,7 +34,7 @@ export const useAnnotations = () => {
     null,
   );
 
-  const arrowEditSnapshotRef = useRef<AnnotationItem[] | null>(null);
+  const editSnapshotRef = useRef<AnnotationItem[] | null>(null);
 
   const strokes = history
     .filter(
@@ -221,9 +221,9 @@ export const useAnnotations = () => {
     }
   }, []);
 
-  const beginArrowEdit = useCallback(() => {
-    if (arrowEditSnapshotRef.current === null) {
-      arrowEditSnapshotRef.current = history;
+  const beginEdit = useCallback(() => {
+    if (editSnapshotRef.current === null) {
+      editSnapshotRef.current = history;
     }
   }, [history]);
 
@@ -248,28 +248,56 @@ export const useAnnotations = () => {
     [],
   );
 
-  const finishArrowEdit = useCallback(() => {
-    const originalHistory = arrowEditSnapshotRef.current;
+  const updateShape = useCallback(
+    (
+      kind: ShapeTool,
+      id: string,
+      updates: Partial<Pick<AnnotationShape, "start" | "end">>,
+    ) => {
+      setHistory((previous) =>
+        previous.map((item) => {
+          if (item.kind !== kind || item.value.id !== id) {
+            return item;
+          }
+
+          return {
+            ...item,
+            value: {
+              ...item.value,
+              ...updates,
+            },
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const finishEdit = useCallback(() => {
+    const originalHistory = editSnapshotRef.current;
 
     if (originalHistory === null) return;
 
-    arrowEditSnapshotRef.current = null;
+    editSnapshotRef.current = null;
 
-    const getArrowGeometry = (items: AnnotationItem[]) =>
+    const getEditableGeometry = (items: AnnotationItem[]) =>
       items
         .filter(
-          (item): item is Extract<AnnotationItem, { kind: "arrow" }> =>
-            item.kind === "arrow",
+          (item) =>
+            item.kind === "arrow" ||
+            item.kind === "rectangle" ||
+            item.kind === "circle",
         )
-        .map(({ value }) => ({
-          id: value.id,
-          start: value.start,
-          end: value.end,
+        .map((item) => ({
+          kind: item.kind,
+          id: item.value.id,
+          start: item.value.start,
+          end: item.value.end,
         }));
 
     const changed =
-      JSON.stringify(getArrowGeometry(originalHistory)) !==
-      JSON.stringify(getArrowGeometry(history));
+      JSON.stringify(getEditableGeometry(originalHistory)) !==
+      JSON.stringify(getEditableGeometry(history));
 
     if (changed) {
       setUndoStack((previous) => [...previous, originalHistory]);
@@ -277,7 +305,7 @@ export const useAnnotations = () => {
   }, [history]);
 
   const undo = useCallback(() => {
-    if (arrowEditSnapshotRef.current !== null) return;
+    if (editSnapshotRef.current !== null) return;
 
     if (undoStack.length === 0) return;
 
@@ -307,11 +335,12 @@ export const useAnnotations = () => {
     cancelArrow,
     updateArrow,
     startShape,
+    updateShape,
     continueShape,
     finishShape,
     cancelShape,
-    beginArrowEdit,
-    finishArrowEdit,
+    beginEdit,
+    finishEdit,
     undo,
     canUndo: undoStack.length > 0,
   };
