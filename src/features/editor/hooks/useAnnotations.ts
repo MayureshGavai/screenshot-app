@@ -349,6 +349,10 @@ export const useAnnotations = () => {
     [],
   );
 
+  const updateActiveText = useCallback((updates: Partial<AnnotationText>) => {
+    setActiveText((current) => (current ? { ...current, ...updates } : null));
+  }, []);
+
   const updateText = useCallback(
     (id: string, updates: Partial<AnnotationText>) => {
       setHistory((previous) =>
@@ -415,6 +419,13 @@ export const useAnnotations = () => {
     cancelShape,
     beginEdit,
     finishEdit,
+    texts,
+    activeText,
+    startText,
+    updateActiveText,
+    updateText,
+    finishText,
+    cancelText,
     undo,
     canUndo: undoStack.length > 0,
   };

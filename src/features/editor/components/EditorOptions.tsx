@@ -37,6 +37,8 @@ const EditorOptions = ({
 
   const isShape = tool === "rectangle" || tool === "circle";
 
+  const isText = tool === "text";
+
   const toolLabel =
     tool === "text"
       ? "Text"
@@ -63,22 +65,62 @@ const EditorOptions = ({
         />
       </label>
 
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">
-          {isShape ? "Border width" : "Thickness"}
-        </span>
-        <input
-          type="range"
-          aria-label={`${toolLabel} thickness`}
-          min={isHighlighter ? 8 : 1}
-          max={isHighlighter ? 40 : 20}
-          step={1}
-          value={width}
-          onChange={(event) => onWidthChange(Number(event.target.value))}
-          className="w-24 h-1 accent-primary"
-        />
-        <span className="w-5 text-right tabular-nums">{width}</span>
-      </label>
+      {!isText && (
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">
+            {isShape ? "Border width" : "Thickness"}
+          </span>
+
+          <input
+            type="range"
+            aria-label={`${toolLabel} thickness`}
+            min={isHighlighter ? 8 : 1}
+            max={isHighlighter ? 40 : 20}
+            step={1}
+            value={width}
+            onChange={(event) => onWidthChange(Number(event.target.value))}
+            className="h-1 w-24 accent-primary"
+          />
+
+          <span className="w-5 text-right tabular-nums">{width}</span>
+        </label>
+      )}
+
+      {isText && (
+        <>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Font size</span>
+
+            <input
+              type="range"
+              aria-label="Text font size"
+              min={12}
+              max={72}
+              step={1}
+              value={fontSize}
+              onChange={(event) =>
+                onFontSizeChange?.(Number(event.target.value))
+              }
+              className="h-1 w-24 accent-primary"
+            />
+
+            <span className="w-7 text-right tabular-nums">{fontSize}</span>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={fontWeight === "bold"}
+              onChange={(event) =>
+                onFontWeightChange?.(event.target.checked ? "bold" : "normal")
+              }
+              className="size-4 accent-primary"
+            />
+            <span className="text-muted-foreground">Bold</span>
+          </label>
+        </>
+      )}
+
       {isShape && (
         <>
           <label className="flex items-center gap-2 text-sm">

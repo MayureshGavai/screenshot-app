@@ -5,6 +5,7 @@ import type {
   AnnotationFill,
   AnnotationRectangle,
   AnnotationStroke,
+  AnnotationText,
   EditorTool,
   Point,
 } from "../types/editor.types";
@@ -32,6 +33,7 @@ import {
 import ArrowShape from "./shapes/ArrowShape";
 import RectangleShape from "./shapes/RectangleShape";
 import CircleShape from "./shapes/CircleShape";
+import TextShape from "./shapes/TextShape";
 
 type ScreenshotCanvasProps = {
   screenshot: string;
@@ -87,6 +89,24 @@ type ScreenshotCanvasProps = {
   onCancelShape: (tool: "rectangle" | "circle") => void;
   onBeginEdit: () => void;
   onFinishEdit: () => void;
+  texts: AnnotationText[];
+  activeText: AnnotationText | null;
+
+  textColor: string;
+  textFontSize: number;
+  textFontWeight: "normal" | "bold";
+
+  onStartText: (
+    point: Point,
+    color: string,
+    fontSize: number,
+    fontWeight: "normal" | "bold",
+  ) => void;
+
+  onUpdateActiveText: (updates: Partial<AnnotationText>) => void;
+  onFinishText: () => void;
+  onCancelText: () => void;
+  onUpdateText: (id: string, updates: Partial<AnnotationText>) => void;
 };
 
 const ScreenshotCanvas = ({
@@ -123,6 +143,16 @@ const ScreenshotCanvas = ({
   onUpdateArrow,
   onBeginEdit,
   onFinishEdit,
+  texts,
+  activeText,
+  textColor,
+  textFontSize,
+  textFontWeight,
+  onStartText,
+  onUpdateActiveText,
+  onUpdateText,
+  onFinishText,
+  onCancelText,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -139,6 +169,14 @@ const ScreenshotCanvas = ({
   const isDrawingArrow = activeTool === "arrow";
   const isDrawingShape = activeTool === "rectangle" || activeTool === "circle";
   const isDrawing = isDrawingStroke || isDrawingArrow || isDrawingShape;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (activeText) {
+      textareaRef.current?.focus();
+    }
+  }, [activeText?.id]);
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
@@ -171,6 +209,14 @@ const ScreenshotCanvas = ({
 
     const point = getPoint(event);
     if (!point) return;
+
+    if (activeTool === "text") {
+      event.preventDefault();
+
+      onStartText(point, textColor, textFontSize, textFontWeight);
+
+      return;
+    }
 
     if (activeTool === "select") {
       // First check whether the user clicked the currently selected annotation.
@@ -598,7 +644,63 @@ const ScreenshotCanvas = ({
                   )}
               </g>
             ))}
+
+            {texts.map((annotation) => (
+              <TextShape key={annotation.id} annotation={annotation} />
+            ))}
           </svg>
+        )}
+        {activeText && imageRef.current && (
+          <textarea
+            ref={textareaRef}
+            autoFocus
+            value={activeText.text}
+            onChange={(event) =>
+              onUpdateActiveText({ text: event.target.value })
+            }
+            onBlur={onFinishText}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                onCancelText();
+              }
+
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            placeholder="Type something..."
+            style={{
+              position: "absolute",
+              left:
+                activeText.x * (imageRef.current.clientWidth / imageSize.width),
+              top:
+                activeText.y *
+                (imageRef.current.clientHeight / imageSize.height),
+              width:
+                activeText.width *
+                (imageRef.current.clientWidth / imageSize.width),
+              minHeight: 50,
+              color: activeText.color,
+              fontSize:
+                activeText.fontSize *
+                (imageRef.current.clientHeight / imageSize.height),
+              fontWeight: activeText.fontWeight,
+              fontFamily: "Inter, sans-serif",
+              resize: "both",
+              overflow: "hidden",
+              background: "transparent",
+              border: "1px dashed currentColor",
+              outline: "none",
+              padding: 2,
+              zIndex: 10,
+            }}
+            className="leading-tight"
+          />
         )}
       </div>
     </section>

@@ -79,6 +79,13 @@ const ScreenshotEditor = ({
     updateShape,
     finishShape,
     cancelShape,
+    texts,
+    activeText,
+    startText,
+    updateActiveText,
+    updateText,
+    finishText,
+    cancelText,
     undo,
     canUndo,
   } = useAnnotations();
@@ -261,6 +268,16 @@ const ScreenshotEditor = ({
         onUpdateShape={updateShape}
         onFinishShape={finishShape}
         onCancelShape={cancelShape}
+        texts={texts}
+        activeText={activeText}
+        textColor={textColor}
+        textFontSize={textFontSize}
+        textFontWeight={textFontWeight}
+        onStartText={startText}
+        onUpdateActiveText={updateActiveText}
+        onFinishText={finishText}
+        onCancelText={cancelText}
+        onUpdateText={updateText}
       />
     </main>
   );
