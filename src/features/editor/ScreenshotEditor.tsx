@@ -135,6 +135,11 @@ const ScreenshotEditor = ({
     undo();
   };
 
+  const handleFinishText = () => {
+    finishText();
+    setActiveTool("select");
+  };
+
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       <EditorToolbar
@@ -275,7 +280,7 @@ const ScreenshotEditor = ({
         textFontWeight={textFontWeight}
         onStartText={startText}
         onUpdateActiveText={updateActiveText}
-        onFinishText={finishText}
+        onFinishText={handleFinishText}
         onCancelText={cancelText}
         onUpdateText={updateText}
       />

@@ -26,6 +26,7 @@ import {
   getShapeBounds,
   isPointInsideCircle,
   isPointInsideRectangle,
+  isPointInsideText,
   isPointNearCircle,
   isPointNearRectangle,
   strokeToPath,
@@ -199,6 +200,7 @@ const ScreenshotCanvas = ({
       arrows,
       rectangles,
       circles,
+      texts,
     );
 
     setHoveredAnnotation(hitAnnotation);
@@ -210,15 +212,47 @@ const ScreenshotCanvas = ({
     const point = getPoint(event);
     if (!point) return;
 
+    if (activeText) {
+      event.preventDefault();
+      onFinishText();
+      return;
+    }
+
     if (activeTool === "text") {
       event.preventDefault();
-
       onStartText(point, textColor, textFontSize, textFontWeight);
 
       return;
     }
 
     if (activeTool === "select") {
+      // Handle an already-selected text annotation.
+      if (selectedAnnotation?.kind === "text") {
+        const selectedText = texts.find(
+          (item) => item.id === selectedAnnotation.id,
+        );
+
+        if (selectedText && isPointInsideText(point, selectedText)) {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+
+          onBeginEdit();
+
+          dragTargetRef.current = {
+            kind: "text",
+            id: selectedText.id,
+            endpoint: "move",
+          };
+
+          dragOriginRef.current = {
+            pointer: point,
+            x: selectedText.x,
+            y: selectedText.y,
+          };
+
+          return;
+        }
+      }
       // First check whether the user clicked the currently selected annotation.
       if (selectedAnnotation) {
         let selectedItem:
@@ -331,8 +365,34 @@ const ScreenshotCanvas = ({
         arrows,
         rectangles,
         circles,
+        texts,
       );
       setSelectedAnnotation(hitAnnotation);
+
+      if (hitAnnotation?.kind === "text") {
+        const selectedText = texts.find((item) => item.id === hitAnnotation.id);
+
+        if (!selectedText) return;
+
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+
+        onBeginEdit();
+
+        dragTargetRef.current = {
+          kind: "text",
+          id: selectedText.id,
+          endpoint: "move",
+        };
+
+        dragOriginRef.current = {
+          pointer: point,
+          x: selectedText.x,
+          y: selectedText.y,
+        };
+
+        return;
+      }
 
       if (hitAnnotation) {
         event.preventDefault();
@@ -370,6 +430,17 @@ const ScreenshotCanvas = ({
       const origin = dragOriginRef.current;
       if (!origin) return;
 
+      // Move text annotation
+      if (dragTarget.kind === "text") {
+        onUpdateText(dragTarget.id, {
+          x: (origin.x ?? 0) + (point.x - origin.pointer.x),
+          y: (origin.y ?? 0) + (point.y - origin.pointer.y),
+        });
+
+        return;
+      }
+
+      // Move or resize arrow, rectangle, or circle
       let updates: Partial<
         Pick<
           AnnotationArrow | AnnotationRectangle | AnnotationCircle,
@@ -383,12 +454,12 @@ const ScreenshotCanvas = ({
 
         updates = {
           start: {
-            x: origin.start.x + dx,
-            y: origin.start.y + dy,
+            x: origin.start!.x + dx,
+            y: origin.start!.y + dy,
           },
           end: {
-            x: origin.end.x + dx,
-            y: origin.end.y + dy,
+            x: origin.end!.x + dx,
+            y: origin.end!.y + dy,
           },
         };
       } else {
@@ -406,6 +477,7 @@ const ScreenshotCanvas = ({
       return;
     }
 
+    // Continue drawing annotations
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
 
     if (isDrawingArrow) {
@@ -646,7 +718,14 @@ const ScreenshotCanvas = ({
             ))}
 
             {texts.map((annotation) => (
-              <TextShape key={annotation.id} annotation={annotation} />
+              <TextShape
+                key={annotation.id}
+                annotation={annotation}
+                selected={
+                  selectedAnnotation?.kind === "text" &&
+                  selectedAnnotation.id === annotation.id
+                }
+              />
             ))}
           </svg>
         )}

@@ -14,6 +14,10 @@ export type EditableAnnotation =
   | {
       kind: "circle";
       id: string;
+    }
+  | {
+      kind: "text";
+      id: string;
     };
 
 export type DragTarget = EditableAnnotation & {
@@ -22,8 +26,10 @@ export type DragTarget = EditableAnnotation & {
 
 export type DragOrigin = {
   pointer: Point;
-  start: Point;
-  end: Point;
+  start?: Point;
+  end?: Point;
+  x?: number;
+  y?: number;
 };
 
 export type ShapeTool = "rectangle" | "circle";

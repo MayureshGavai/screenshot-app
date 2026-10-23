@@ -3,6 +3,7 @@ import type {
   AnnotationCircle,
   AnnotationRectangle,
   AnnotationStroke,
+  AnnotationText,
   Point,
 } from "../../types/editor.types";
 
@@ -130,13 +131,35 @@ export const isPointInsideCircle = (point: Point, circle: AnnotationCircle) => {
   return ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2 <= 1;
 };
 
+export const isPointInsideText = (point: Point, annotation: AnnotationText) => {
+  const lines = annotation.text.split("\n");
+  const height = Math.max(
+    annotation.fontSize,
+    lines.length * annotation.fontSize * 1.2,
+  );
+
+  return (
+    point.x >= annotation.x &&
+    point.x <= annotation.x + annotation.width &&
+    point.y >= annotation.y &&
+    point.y <= annotation.y + height
+  );
+};
+
 export const findAnnotationAtPoint = (
   point: Point,
   arrows: AnnotationArrow[],
   rectangles: AnnotationRectangle[],
   circles: AnnotationCircle[],
+  texts: AnnotationText[],
 ): EditableAnnotation | null => {
-  // Check the most recently added arrow first.
+  // Check text annotations first because they are rendered above the shapes.
+  for (const text of [...texts].reverse()) {
+    if (isPointInsideText(point, text)) {
+      return { kind: "text", id: text.id };
+    }
+  }
+
   for (const arrow of [...arrows].reverse()) {
     if (
       distanceToSegment(point, arrow.start, arrow.end) <=
@@ -146,7 +169,6 @@ export const findAnnotationAtPoint = (
     }
   }
 
-  // Check rectangles from top to bottom.
   for (const rectangle of [...rectangles].reverse()) {
     if (
       isPointInsideRectangle(point, rectangle) ||
@@ -156,7 +178,6 @@ export const findAnnotationAtPoint = (
     }
   }
 
-  // Check circles from top to bottom.
   for (const circle of [...circles].reverse()) {
     if (
       isPointInsideCircle(point, circle) ||
