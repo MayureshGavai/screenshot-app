@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 import type {
   AnnotationArrow,
   AnnotationCircle,
@@ -34,7 +40,7 @@ import {
 import ArrowShape from "./shapes/ArrowShape";
 import RectangleShape from "./shapes/RectangleShape";
 import CircleShape from "./shapes/CircleShape";
-import TextShape from "./shapes/TextShape";
+import TextShape, { type TextBounds } from "./shapes/TextShape";
 
 type ScreenshotCanvasProps = {
   screenshot: string;
@@ -173,6 +179,15 @@ const ScreenshotCanvas = ({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const textBoundsRef = useRef<Map<string, TextBounds>>(new Map());
+
+  const handleTextBoundsChange = useCallback(
+    (id: string, bounds: TextBounds) => {
+      textBoundsRef.current.set(id, bounds);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (activeText) {
       textareaRef.current?.focus();
@@ -201,6 +216,7 @@ const ScreenshotCanvas = ({
       rectangles,
       circles,
       texts,
+      textBoundsRef.current,
     );
 
     setHoveredAnnotation(hitAnnotation);
@@ -366,6 +382,7 @@ const ScreenshotCanvas = ({
         rectangles,
         circles,
         texts,
+        textBoundsRef.current,
       );
       setSelectedAnnotation(hitAnnotation);
 
@@ -725,6 +742,7 @@ const ScreenshotCanvas = ({
                   selectedAnnotation?.kind === "text" &&
                   selectedAnnotation.id === annotation.id
                 }
+                onBoundsChange={handleTextBoundsChange}
               />
             ))}
           </svg>

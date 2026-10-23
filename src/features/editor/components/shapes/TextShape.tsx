@@ -1,16 +1,28 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { AnnotationText } from "../../types/editor.types";
 
+export type TextBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 type TextShapeProps = {
   annotation: AnnotationText;
   selected?: boolean;
+  onBoundsChange?: (id: string, bounds: TextBounds) => void;
 };
 
-const TextShape = ({ annotation, selected }: TextShapeProps) => {
+const TextShape = ({
+  annotation,
+  selected,
+  onBoundsChange,
+}: TextShapeProps) => {
   const lines = annotation.text.split("\n");
   const textRef = useRef<SVGTextElement>(null);
 
-  const [textBounds, setTextBounds] = useState({
+  const [textBounds, setTextBounds] = useState<TextBounds>({
     x: annotation.x,
     y: annotation.y,
     width: 0,
@@ -22,19 +34,23 @@ const TextShape = ({ annotation, selected }: TextShapeProps) => {
 
     const bounds = textRef.current.getBBox();
 
-    setTextBounds({
+    const measuredBounds = {
       x: bounds.x,
       y: bounds.y,
       width: bounds.width,
       height: bounds.height,
-    });
+    };
+
+    setTextBounds(measuredBounds);
+    onBoundsChange?.(annotation.id, measuredBounds);
   }, [
+    annotation.id,
     annotation.text,
     annotation.x,
     annotation.y,
     annotation.fontSize,
     annotation.fontWeight,
-    annotation.width,
+    onBoundsChange,
   ]);
 
   return (

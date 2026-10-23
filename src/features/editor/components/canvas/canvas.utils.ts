@@ -9,6 +9,7 @@ import type {
 
 import type { EditableAnnotation } from "./canvas.types";
 import { ARROW_HIT_DISTANCE } from "./canvas.constants";
+import type { TextBounds } from "../shapes/TextShape";
 
 export const distanceBetween = (a: Point, b: Point) =>
   Math.hypot(a.x - b.x, a.y - b.y);
@@ -131,18 +132,18 @@ export const isPointInsideCircle = (point: Point, circle: AnnotationCircle) => {
   return ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2 <= 1;
 };
 
-export const isPointInsideText = (point: Point, annotation: AnnotationText) => {
-  const lines = annotation.text.split("\n");
-  const height = Math.max(
-    annotation.fontSize,
-    lines.length * annotation.fontSize * 1.2,
-  );
+export const isPointInsideText = (
+  point: Point,
+  annotation: AnnotationText,
+  bounds?: TextBounds,
+) => {
+  if (!bounds) return false;
 
   return (
-    point.x >= annotation.x &&
-    point.x <= annotation.x + annotation.width &&
-    point.y >= annotation.y &&
-    point.y <= annotation.y + height
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
   );
 };
 
@@ -152,10 +153,13 @@ export const findAnnotationAtPoint = (
   rectangles: AnnotationRectangle[],
   circles: AnnotationCircle[],
   texts: AnnotationText[],
+  textBounds: Map<string, TextBounds>,
 ): EditableAnnotation | null => {
   // Check text annotations first because they are rendered above the shapes.
   for (const text of [...texts].reverse()) {
-    if (isPointInsideText(point, text)) {
+    const bounds = textBounds.get(text.id);
+
+    if (isPointInsideText(point, text, bounds)) {
       return { kind: "text", id: text.id };
     }
   }
