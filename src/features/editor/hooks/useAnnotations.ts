@@ -533,6 +533,19 @@ export const useAnnotations = () => {
     hasErasedAnnotationsRef.current = false;
   }, []);
 
+  const deleteAnnotation = useCallback(
+    (id: string) => {
+      const exists = history.some((item) => item.value.id === id);
+
+      if (!exists) return;
+
+      setUndoStack((previous) => [...previous, { history }]);
+
+      setHistory((previous) => previous.filter((item) => item.value.id !== id));
+    },
+    [history],
+  );
+
   const applyCrop = useCallback(
     (crop: CropRect, previousScreenshot: string) => {
       // Finish any temporary drawing/editing state before cropping.
@@ -620,6 +633,7 @@ export const useAnnotations = () => {
     beginErase,
     eraseAnnotations,
     finishErase,
+    deleteAnnotation,
     applyCrop,
     undo,
     canUndo: undoStack.length > 0,

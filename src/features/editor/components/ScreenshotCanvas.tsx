@@ -118,6 +118,7 @@ type ScreenshotCanvasProps = {
   onEraseAnnotations: (ids: string[]) => void;
   onFinishErase: () => void;
   onCropSelectionChange: (rect: CropRect | null) => void;
+  onDeleteAnnotation: (id: string) => void;
 };
 
 const ScreenshotCanvas = ({
@@ -168,6 +169,7 @@ const ScreenshotCanvas = ({
   onEraseAnnotations,
   onFinishErase,
   onCropSelectionChange,
+  onDeleteAnnotation,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -234,6 +236,37 @@ const ScreenshotCanvas = ({
       textareaRef.current?.focus();
     }
   }, [activeText?.id]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (activeTool !== "select" || !selectedAnnotation) return;
+
+      const target = event.target;
+
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      if (event.key === "Delete") {
+        event.preventDefault();
+
+        onDeleteAnnotation(selectedAnnotation.id);
+
+        setSelectedAnnotation(null);
+        setHoveredAnnotation(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeTool, selectedAnnotation, onDeleteAnnotation]);
 
   const getEraserRadius = (svg: SVGSVGElement) => {
     const bounds = svg.getBoundingClientRect();
