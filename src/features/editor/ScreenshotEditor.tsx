@@ -199,6 +199,28 @@ const ScreenshotEditor = ({
     setActiveTool("select");
   };
 
+  const handleApplyCrop = async () => {
+    if (!cropSelection) return;
+
+    try {
+      const croppedScreenshot = await createCroppedScreenshot(
+        currentScreenshot,
+        cropSelection,
+      );
+
+      applyCrop(cropSelection, currentScreenshot);
+
+      setCurrentScreenshot(croppedScreenshot);
+      setCropSelection(null);
+      setActiveTool("select");
+
+      // toast.success("Screenshot cropped successfully.");
+    } catch (error) {
+      console.error("Failed to crop screenshot:", error);
+      toast.error("Could not crop the screenshot.");
+    }
+  };
+
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       {activeTool === "crop" ? (
@@ -208,27 +230,7 @@ const ScreenshotEditor = ({
             setCropSelection(null);
             setActiveTool("select");
           }}
-          onApply={async () => {
-            if (!cropSelection) return;
-
-            try {
-              const croppedScreenshot = await createCroppedScreenshot(
-                currentScreenshot,
-                cropSelection,
-              );
-
-              applyCrop(cropSelection, currentScreenshot);
-
-              setCurrentScreenshot(croppedScreenshot);
-              setCropSelection(null);
-              setActiveTool("select");
-
-              toast.success("Screenshot cropped successfully.");
-            } catch (error) {
-              console.error("Failed to crop screenshot:", error);
-              toast.error("Could not crop the screenshot.");
-            }
-          }}
+          onApply={handleApplyCrop}
         />
       ) : (
         <EditorToolbar

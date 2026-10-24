@@ -837,7 +837,7 @@ const ScreenshotCanvas = ({
 
   return (
     <section className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-4 sm:p-6">
-      <div className="relative inline-flex max-h-full max-w-full shrink-0 shadow-lg">
+      <div className="relative inline-flex max-h-full max-w-full shrink-0 overflow-hidden shadow-lg">
         <img
           ref={imageRef}
           src={screenshot}
@@ -994,15 +994,12 @@ const ScreenshotCanvas = ({
                       />
 
                       {[arrow.start, arrow.end].map((point, index) => (
-                        <g
-                          key={`${arrow.id}-handle-${index}`}
-                          className="text-accent"
-                        >
+                        <g key={`${arrow.id}-handle-${index}`}>
                           <circle
                             cx={point.x}
                             cy={point.y}
                             r={HANDLE_RADIUS}
-                            fill="var(--background)"
+                            fill="var(--accent)"
                             stroke="currentColor"
                             strokeWidth={2}
                             style={{ cursor: "grab" }}
