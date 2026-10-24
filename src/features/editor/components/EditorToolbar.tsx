@@ -4,6 +4,7 @@ import {
   Copy,
   Crop,
   Download,
+  Eraser,
   Highlighter,
   MousePointer2,
   Pencil,
@@ -45,6 +46,7 @@ const EditorToolbar = ({
     { id: "rectangle", label: "Rectangle", icon: Square },
     { id: "circle", label: "Circle", icon: Circle },
     { id: "text", label: "Text", icon: Type },
+    { id: "eraser", label: "Eraser", icon: Eraser },
   ] as const satisfies ReadonlyArray<{
     id: EditorTool;
     label: string;

@@ -40,6 +40,8 @@ export const useAnnotations = () => {
   const [activeText, setActiveText] = useState<AnnotationText | null>(null);
 
   const editSnapshotRef = useRef<AnnotationItem[] | null>(null);
+  const eraseSnapshotRef = useRef<AnnotationItem[] | null>(null);
+  const hasErasedAnnotationsRef = useRef(false);
 
   const strokes = history
     .filter(
@@ -382,8 +384,44 @@ export const useAnnotations = () => {
     setActiveText(null);
   }, []);
 
+  const beginErase = useCallback(() => {
+    if (eraseSnapshotRef.current !== null) return;
+
+    eraseSnapshotRef.current = history;
+    hasErasedAnnotationsRef.current = false;
+  }, [history]);
+
+  const eraseAnnotations = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+
+    setHistory((previous) => {
+      const idSet = new Set(ids);
+
+      const next = previous.filter((item) => !idSet.has(item.value.id));
+
+      if (next.length !== previous.length) {
+        hasErasedAnnotationsRef.current = true;
+      }
+
+      return next;
+    });
+  }, []);
+
+  const finishErase = useCallback(() => {
+    const originalHistory = eraseSnapshotRef.current;
+
+    if (originalHistory === null) return;
+
+    if (hasErasedAnnotationsRef.current) {
+      setUndoStack((previous) => [...previous, originalHistory]);
+    }
+
+    eraseSnapshotRef.current = null;
+    hasErasedAnnotationsRef.current = false;
+  }, []);
+
   const undo = useCallback(() => {
-    if (editSnapshotRef.current !== null) return;
+    if (editSnapshotRef.current !== null || eraseSnapshotRef.current) return;
 
     if (undoStack.length === 0) return;
 
@@ -426,6 +464,9 @@ export const useAnnotations = () => {
     updateText,
     finishText,
     cancelText,
+    beginErase,
+    eraseAnnotations,
+    finishErase,
     undo,
     canUndo: undoStack.length > 0,
   };

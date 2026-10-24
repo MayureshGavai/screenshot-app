@@ -29,6 +29,7 @@ import {
   distanceBetween,
   distanceToSegment,
   findAnnotationAtPoint,
+  findAnnotationsIntersectingEraser,
   getShapeBounds,
   isPointInsideCircle,
   isPointInsideRectangle,
@@ -98,22 +99,22 @@ type ScreenshotCanvasProps = {
   onFinishEdit: () => void;
   texts: AnnotationText[];
   activeText: AnnotationText | null;
-
   textColor: string;
   textFontSize: number;
   textFontWeight: "normal" | "bold";
-
   onStartText: (
     point: Point,
     color: string,
     fontSize: number,
     fontWeight: "normal" | "bold",
   ) => void;
-
   onUpdateActiveText: (updates: Partial<AnnotationText>) => void;
   onFinishText: () => void;
   onCancelText: () => void;
   onUpdateText: (id: string, updates: Partial<AnnotationText>) => void;
+  onBeginErase: () => void;
+  onEraseAnnotations: (ids: string[]) => void;
+  onFinishErase: () => void;
 };
 
 const ScreenshotCanvas = ({
@@ -160,6 +161,9 @@ const ScreenshotCanvas = ({
   onUpdateText,
   onFinishText,
   onCancelText,
+  onBeginErase,
+  onEraseAnnotations,
+  onFinishErase,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -172,10 +176,16 @@ const ScreenshotCanvas = ({
   const [hoveredAnnotation, setHoveredAnnotation] =
     useState<EditableAnnotation | null>(null);
 
+  const [pointerPosition, setPointerPosition] = useState<Point | null>(null);
+  const [eraserCursorRadius, setEraserCursorRadius] = useState(0);
+
   const isDrawingStroke = activeTool === "pen" || activeTool === "highlighter";
   const isDrawingArrow = activeTool === "arrow";
   const isDrawingShape = activeTool === "rectangle" || activeTool === "circle";
-  const isDrawing = isDrawingStroke || isDrawingArrow || isDrawingShape;
+  const isErasing = activeTool === "eraser";
+  const isDrawing =
+    isDrawingStroke || isDrawingArrow || isDrawingShape || isErasing;
+  const ERASER_DISPLAY_RADIUS = 18;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -193,6 +203,29 @@ const ScreenshotCanvas = ({
       textareaRef.current?.focus();
     }
   }, [activeText?.id]);
+
+  const getEraserRadius = (svg: SVGSVGElement) => {
+    const bounds = svg.getBoundingClientRect();
+
+    if (!bounds.width || !imageSize.width) return ERASER_DISPLAY_RADIUS;
+
+    return ERASER_DISPLAY_RADIUS * (imageSize.width / bounds.width);
+  };
+
+  const eraseAtPoint = (point: Point, radius: number) => {
+    const ids = findAnnotationsIntersectingEraser(
+      point,
+      radius,
+      strokes,
+      arrows,
+      rectangles,
+      circles,
+      texts,
+      textBoundsRef.current,
+    );
+
+    onEraseAnnotations(ids);
+  };
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
@@ -237,6 +270,25 @@ const ScreenshotCanvas = ({
     if (activeTool === "text") {
       event.preventDefault();
       onStartText(point, textColor, textFontSize, textFontWeight);
+
+      return;
+    }
+
+    if (isErasing) {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+
+      const radius = getEraserRadius(event.currentTarget);
+
+      setPointerPosition(point);
+      setEraserCursorRadius(radius);
+
+      setSelectedAnnotation(null);
+      setHoveredAnnotation(null);
+
+      onBeginErase();
+
+      eraseAtPoint(point, radius);
 
       return;
     }
@@ -437,6 +489,11 @@ const ScreenshotCanvas = ({
     const point = getPoint(event);
     if (!point) return;
 
+    if (isErasing) {
+      setPointerPosition(point);
+      setEraserCursorRadius(getEraserRadius(event.currentTarget));
+    }
+
     if (activeTool === "select" && !dragTargetRef.current) {
       handleAnnotationHover(point);
     }
@@ -494,6 +551,11 @@ const ScreenshotCanvas = ({
       return;
     }
 
+    if (isErasing && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      eraseAtPoint(point, getEraserRadius(event.currentTarget));
+      return;
+    }
+
     // Continue drawing annotations
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
 
@@ -509,6 +571,11 @@ const ScreenshotCanvas = ({
   const handlePointerUp = (event: PointerEvent<SVGSVGElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (isErasing) {
+      onFinishErase();
+      return;
     }
 
     const wasEditing = dragTargetRef.current !== null;
@@ -535,6 +602,11 @@ const ScreenshotCanvas = ({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
+    if (isErasing) {
+      onFinishErase();
+      return;
+    }
+
     dragTargetRef.current = null;
     dragOriginRef.current = null;
 
@@ -551,6 +623,10 @@ const ScreenshotCanvas = ({
     if (activeTool !== "select") {
       setHoveredAnnotation(null);
       setSelectedAnnotation(null);
+    }
+
+    if (activeTool !== "eraser") {
+      setPointerPosition(null);
     }
   }, [activeTool]);
 
@@ -584,17 +660,21 @@ const ScreenshotCanvas = ({
             preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full touch-none ${
-              isDrawing
-                ? "cursor-crosshair"
-                : activeTool === "select" &&
-                    (hoveredAnnotation !== null || selectedAnnotation !== null)
-                  ? "cursor-pointer"
-                  : "cursor-default"
+              activeTool === "eraser"
+                ? "cursor-none"
+                : isDrawing
+                  ? "cursor-crosshair"
+                  : activeTool === "select" &&
+                      (hoveredAnnotation !== null ||
+                        selectedAnnotation !== null)
+                    ? "cursor-pointer"
+                    : "cursor-default"
             }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
+            onPointerLeave={() => setPointerPosition(null)}
           >
             {visibleStrokes.map((stroke) => (
               <g key={stroke.id} opacity={stroke.opacity}>
@@ -745,6 +825,20 @@ const ScreenshotCanvas = ({
                 onBoundsChange={handleTextBoundsChange}
               />
             ))}
+
+            {activeTool === "eraser" && pointerPosition && (
+              <circle
+                cx={pointerPosition.x}
+                cy={pointerPosition.y}
+                r={eraserCursorRadius}
+                fill="#94a3b8"
+                fillOpacity={0.15}
+                stroke="#64748b"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                pointerEvents="none"
+              />
+            )}
           </svg>
         )}
         {activeText && imageRef.current && (

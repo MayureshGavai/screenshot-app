@@ -193,3 +193,169 @@ export const findAnnotationAtPoint = (
 
   return null;
 };
+
+const isPointNearStroke = (
+  point: Point,
+  stroke: AnnotationStroke,
+  radius: number,
+) => {
+  const threshold = radius + stroke.width / 2;
+
+  if (stroke.points.length === 1) {
+    return distanceBetween(point, stroke.points[0]) <= threshold;
+  }
+
+  return stroke.points.some((current, index) => {
+    if (index === 0) return false;
+
+    return (
+      distanceToSegment(point, stroke.points[index - 1], current) <= threshold
+    );
+  });
+};
+
+const isPointNearArrow = (
+  point: Point,
+  arrow: AnnotationArrow,
+  radius: number,
+) =>
+  distanceToSegment(point, arrow.start, arrow.end) <= radius + arrow.width / 2;
+
+const isPointNearRectangleForEraser = (
+  point: Point,
+  rectangle: AnnotationRectangle,
+  radius: number,
+) => {
+  const bounds = getShapeBounds(rectangle);
+
+  if (
+    rectangle.fill &&
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  ) {
+    return true;
+  }
+
+  const topLeft = { x: bounds.x, y: bounds.y };
+  const topRight = { x: bounds.x + bounds.width, y: bounds.y };
+  const bottomLeft = { x: bounds.x, y: bounds.y + bounds.height };
+  const bottomRight = {
+    x: bounds.x + bounds.width,
+    y: bounds.y + bounds.height,
+  };
+
+  const threshold = radius + rectangle.width / 2;
+
+  return [
+    [topLeft, topRight],
+    [topRight, bottomRight],
+    [bottomRight, bottomLeft],
+    [bottomLeft, topLeft],
+  ].some(([start, end]) => distanceToSegment(point, start, end) <= threshold);
+};
+
+const isPointNearCircleForEraser = (
+  point: Point,
+  circle: AnnotationCircle,
+  radius: number,
+) => {
+  const bounds = getShapeBounds(circle);
+
+  if (bounds.width === 0 || bounds.height === 0) return false;
+
+  const rx = bounds.width / 2;
+  const ry = bounds.height / 2;
+  const cx = bounds.x + rx;
+  const cy = bounds.y + ry;
+
+  const normalizedDistance =
+    ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2;
+
+  if (circle.fill && normalizedDistance <= 1) return true;
+
+  const threshold = radius + circle.width / 2;
+  const segments = 48;
+
+  let previous = {
+    x: cx + rx,
+    y: cy,
+  };
+
+  for (let index = 1; index <= segments; index++) {
+    const angle = (index / segments) * Math.PI * 2;
+
+    const current = {
+      x: cx + rx * Math.cos(angle),
+      y: cy + ry * Math.sin(angle),
+    };
+
+    if (distanceToSegment(point, previous, current) <= threshold) {
+      return true;
+    }
+
+    previous = current;
+  }
+
+  return false;
+};
+
+export const findAnnotationsIntersectingEraser = (
+  point: Point,
+  radius: number,
+  strokes: AnnotationStroke[],
+  arrows: AnnotationArrow[],
+  rectangles: AnnotationRectangle[],
+  circles: AnnotationCircle[],
+  texts: AnnotationText[],
+  textBounds: Map<string, TextBounds>,
+): string[] => {
+  const matchedIds: string[] = [];
+
+  for (const stroke of strokes) {
+    if (isPointNearStroke(point, stroke, radius)) {
+      matchedIds.push(stroke.id);
+    }
+  }
+
+  for (const arrow of arrows) {
+    if (isPointNearArrow(point, arrow, radius)) {
+      matchedIds.push(arrow.id);
+    }
+  }
+
+  for (const rectangle of rectangles) {
+    if (isPointNearRectangleForEraser(point, rectangle, radius)) {
+      matchedIds.push(rectangle.id);
+    }
+  }
+
+  for (const circle of circles) {
+    if (isPointNearCircleForEraser(point, circle, radius)) {
+      matchedIds.push(circle.id);
+    }
+  }
+
+  for (const text of texts) {
+    const bounds = textBounds.get(text.id);
+
+    if (!bounds) continue;
+
+    const nearestX = Math.max(
+      bounds.x,
+      Math.min(point.x, bounds.x + bounds.width),
+    );
+
+    const nearestY = Math.max(
+      bounds.y,
+      Math.min(point.y, bounds.y + bounds.height),
+    );
+
+    if (distanceBetween(point, { x: nearestX, y: nearestY }) <= radius) {
+      matchedIds.push(text.id);
+    }
+  }
+
+  return matchedIds;
+};

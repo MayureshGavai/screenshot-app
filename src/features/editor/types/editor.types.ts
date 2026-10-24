@@ -6,7 +6,8 @@ export type EditorTool =
   | "arrow"
   | "rectangle"
   | "circle"
-  | "text";
+  | "text"
+  | "eraser";
 
 export type EditorToolConfig = {
   id: EditorTool;

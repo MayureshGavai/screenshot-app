@@ -86,6 +86,9 @@ const ScreenshotEditor = ({
     updateText,
     finishText,
     cancelText,
+    beginErase,
+    eraseAnnotations,
+    finishErase,
     undo,
     canUndo,
   } = useAnnotations();
@@ -283,6 +286,9 @@ const ScreenshotEditor = ({
         onFinishText={handleFinishText}
         onCancelText={cancelText}
         onUpdateText={updateText}
+        onBeginErase={beginErase}
+        onEraseAnnotations={eraseAnnotations}
+        onFinishErase={finishErase}
       />
     </main>
   );
