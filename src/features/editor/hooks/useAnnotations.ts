@@ -22,9 +22,122 @@ type ShapeTool = "rectangle" | "circle";
 
 type AnnotationShape = AnnotationRectangle | AnnotationCircle;
 
+type CropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type UndoEntry = {
+  history: AnnotationItem[];
+  screenshot?: string;
+};
+
+const isBoundsIntersectingCrop = (
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  crop: CropRect,
+) => {
+  return (
+    right >= crop.x &&
+    left <= crop.x + crop.width &&
+    bottom >= crop.y &&
+    top <= crop.y + crop.height
+  );
+};
+
+const transformPoint = (point: Point, crop: CropRect): Point => ({
+  x: point.x - crop.x,
+  y: point.y - crop.y,
+});
+
+const cropAnnotation = (
+  item: AnnotationItem,
+  crop: CropRect,
+): AnnotationItem | null => {
+  switch (item.kind) {
+    case "stroke": {
+      const points = item.value.points;
+      if (points.length === 0) return null;
+
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+
+      const intersects = isBoundsIntersectingCrop(
+        Math.min(...xs) - item.value.width / 2,
+        Math.min(...ys) - item.value.width / 2,
+        Math.max(...xs) + item.value.width / 2,
+        Math.max(...ys) + item.value.width / 2,
+        crop,
+      );
+
+      if (!intersects) return null;
+
+      return {
+        kind: "stroke",
+        value: {
+          ...item.value,
+          points: points.map((point) => transformPoint(point, crop)),
+        },
+      };
+    }
+
+    case "arrow":
+    case "rectangle":
+    case "circle": {
+      const { start, end, width } = item.value;
+
+      const intersects = isBoundsIntersectingCrop(
+        Math.min(start.x, end.x) - width / 2,
+        Math.min(start.y, end.y) - width / 2,
+        Math.max(start.x, end.x) + width / 2,
+        Math.max(start.y, end.y) + width / 2,
+        crop,
+      );
+
+      if (!intersects) return null;
+
+      return {
+        ...item,
+        value: {
+          ...item.value,
+          start: transformPoint(start, crop),
+          end: transformPoint(end, crop),
+        },
+      } as AnnotationItem;
+    }
+
+    case "text": {
+      const text = item.value;
+
+      const intersects = isBoundsIntersectingCrop(
+        text.x,
+        text.y,
+        text.x + text.width,
+        text.y + text.fontSize * 1.5,
+        crop,
+      );
+
+      if (!intersects) return null;
+
+      return {
+        kind: "text",
+        value: {
+          ...text,
+          x: text.x - crop.x,
+          y: text.y - crop.y,
+        },
+      };
+    }
+  }
+};
+
 export const useAnnotations = () => {
   const [history, setHistory] = useState<AnnotationItem[]>([]);
-  const [undoStack, setUndoStack] = useState<AnnotationItem[][]>([]);
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
 
   const [activeStroke, setActiveStroke] = useState<AnnotationStroke | null>(
     null,
@@ -103,7 +216,7 @@ export const useAnnotations = () => {
 
   const finishStroke = useCallback(() => {
     if (activeStroke) {
-      setUndoStack((previous) => [...previous, history]);
+      setUndoStack((previous) => [...previous, { history }]);
       setHistory((previous) => [
         ...previous,
         { kind: "stroke", value: activeStroke },
@@ -141,7 +254,7 @@ export const useAnnotations = () => {
       );
 
       if (distance >= 3) {
-        setUndoStack((previous) => [...previous, history]);
+        setUndoStack((previous) => [...previous, { history }]);
         setHistory((previous) => [
           ...previous,
           { kind: "arrow", value: activeArrow },
@@ -201,7 +314,7 @@ export const useAnnotations = () => {
         );
 
         if (distance >= 3) {
-          setUndoStack((previous) => [...previous, history]);
+          setUndoStack((previous) => [...previous, { history }]);
           setHistory((previous) => [
             ...previous,
             tool === "rectangle"
@@ -321,7 +434,7 @@ export const useAnnotations = () => {
       JSON.stringify(getEditableGeometry(history));
 
     if (changed) {
-      setUndoStack((previous) => [...previous, originalHistory]);
+      setUndoStack((previous) => [...previous, { history: originalHistory }]);
     }
   }, [history]);
 
@@ -370,7 +483,7 @@ export const useAnnotations = () => {
 
   const finishText = useCallback(() => {
     if (activeText?.text.trim()) {
-      setUndoStack((previous) => [...previous, history]);
+      setUndoStack((previous) => [...previous, { history }]);
       setHistory((previous) => [
         ...previous,
         { kind: "text", value: activeText },
@@ -413,23 +526,63 @@ export const useAnnotations = () => {
     if (originalHistory === null) return;
 
     if (hasErasedAnnotationsRef.current) {
-      setUndoStack((previous) => [...previous, originalHistory]);
+      setUndoStack((previous) => [...previous, { history: originalHistory }]);
     }
 
     eraseSnapshotRef.current = null;
     hasErasedAnnotationsRef.current = false;
   }, []);
 
-  const undo = useCallback(() => {
-    if (editSnapshotRef.current !== null || eraseSnapshotRef.current) return;
+  const applyCrop = useCallback(
+    (crop: CropRect, previousScreenshot: string) => {
+      // Finish any temporary drawing/editing state before cropping.
+      setActiveStroke(null);
+      setActiveArrow(null);
+      setActiveRectangle(null);
+      setActiveCircle(null);
+      setActiveText(null);
 
-    if (undoStack.length === 0) return;
+      editSnapshotRef.current = null;
+      eraseSnapshotRef.current = null;
+      hasErasedAnnotationsRef.current = false;
 
-    const previousHistory = undoStack[undoStack.length - 1];
+      // Store the image and annotation snapshot as one undo operation.
+      setUndoStack((previous) => [
+        ...previous,
+        {
+          history,
+          screenshot: previousScreenshot,
+        },
+      ]);
 
-    setHistory(previousHistory);
+      setHistory((previous) =>
+        previous.reduce<AnnotationItem[]>((result, item) => {
+          const transformed = cropAnnotation(item, crop);
 
+          if (transformed) {
+            result.push(transformed);
+          }
+
+          return result;
+        }, []),
+      );
+    },
+    [history],
+  );
+
+  const undo = useCallback((): string | null => {
+    if (editSnapshotRef.current !== null || eraseSnapshotRef.current) {
+      return null;
+    }
+
+    if (undoStack.length === 0) return null;
+
+    const previousEntry = undoStack[undoStack.length - 1];
+
+    setHistory(previousEntry.history);
     setUndoStack((previous) => previous.slice(0, -1));
+
+    return previousEntry.screenshot ?? null;
   }, [undoStack]);
 
   return {
@@ -467,6 +620,7 @@ export const useAnnotations = () => {
     beginErase,
     eraseAnnotations,
     finishErase,
+    applyCrop,
     undo,
     canUndo: undoStack.length > 0,
   };

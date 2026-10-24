@@ -117,6 +117,7 @@ type ScreenshotCanvasProps = {
   onBeginErase: () => void;
   onEraseAnnotations: (ids: string[]) => void;
   onFinishErase: () => void;
+  onCropSelectionChange: (rect: CropRect | null) => void;
 };
 
 const ScreenshotCanvas = ({
@@ -166,6 +167,7 @@ const ScreenshotCanvas = ({
   onBeginErase,
   onEraseAnnotations,
   onFinishErase,
+  onCropSelectionChange,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -220,6 +222,12 @@ const ScreenshotCanvas = ({
 
     cropDragRef.current = null;
   }, [activeTool, imageSize]);
+
+  useEffect(() => {
+    if (activeTool === "crop") {
+      onCropSelectionChange(cropRect);
+    }
+  }, [activeTool, cropRect, onCropSelectionChange]);
 
   useEffect(() => {
     if (activeText) {

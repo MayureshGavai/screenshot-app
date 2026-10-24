@@ -7,13 +7,15 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
 import { toast } from "sonner";
 import { useAnnotations } from "./hooks/useAnnotations";
 import EditorOptions from "./components/EditorOptions";
 import ScreenshotCanvas from "./components/ScreenshotCanvas";
+import type { CropRect } from "./components/canvas/canvas.types";
+import CropToolbar from "./components/CropToolbar";
 
 type ScreenshotEditorProps = {
   screenshot: string;
@@ -24,8 +26,11 @@ const ScreenshotEditor = ({
   screenshot,
   onNewCapture,
 }: ScreenshotEditorProps) => {
+  const [currentScreenshot, setCurrentScreenshot] = useState(screenshot);
+
   const [activeTool, setActiveTool] = useState<EditorTool>("select");
   const [isCopying, setIsCopying] = useState(false);
+  const [cropSelection, setCropSelection] = useState<CropRect | null>(null);
   const [penColor, setPenColor] = useState("#ff0000");
   const [penWidth, setPenWidth] = useState(4);
   const [arrowColor, setArrowColor] = useState("#ff0000");
@@ -53,6 +58,10 @@ const ScreenshotEditor = ({
   const [textFontWeight, setTextFontWeight] = useState<"normal" | "bold">(
     "normal",
   );
+
+  useEffect(() => {
+    setCurrentScreenshot(screenshot);
+  }, [screenshot]);
 
   const {
     strokes,
@@ -89,15 +98,55 @@ const ScreenshotEditor = ({
     beginErase,
     eraseAnnotations,
     finishErase,
+    applyCrop,
     undo,
     canUndo,
   } = useAnnotations();
+
+  const createCroppedScreenshot = async (
+    imageSrc: string,
+    crop: CropRect,
+  ): Promise<string> => {
+    const image = new Image();
+
+    image.src = imageSrc;
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Failed to load screenshot."));
+    });
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = Math.round(crop.width);
+    canvas.height = Math.round(crop.height);
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Could not create canvas context.");
+    }
+
+    context.drawImage(
+      image,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+
+    return canvas.toDataURL("image/png");
+  };
 
   const handleCopy = async () => {
     setIsCopying(true);
 
     try {
-      const response = await fetch(screenshot);
+      const response = await fetch(currentScreenshot);
       const blob = await response.blob();
 
       if (blob.type !== "image/png") {
@@ -121,7 +170,7 @@ const ScreenshotEditor = ({
     // setMessage("");
 
     try {
-      const result = await window.electronAPI.saveScreenshot(screenshot);
+      const result = await window.electronAPI.saveScreenshot(currentScreenshot);
 
       if (result.canceled) return;
 
@@ -135,7 +184,14 @@ const ScreenshotEditor = ({
 
   const handleUndo = () => {
     if (!canUndo) return;
-    undo();
+
+    const previousScreenshot = undo();
+
+    if (previousScreenshot) {
+      setCurrentScreenshot(previousScreenshot);
+      setCropSelection(null);
+      setActiveTool("select");
+    }
   };
 
   const handleFinishText = () => {
@@ -145,16 +201,47 @@ const ScreenshotEditor = ({
 
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
-      <EditorToolbar
-        activeTool={activeTool}
-        onToolChange={setActiveTool}
-        onNewCapture={onNewCapture}
-        onCopy={handleCopy}
-        onDownload={handleDownload}
-        onUndo={handleUndo}
-        isCopying={isCopying}
-        canUndo={canUndo}
-      />
+      {activeTool === "crop" ? (
+        <CropToolbar
+          canApply={!!cropSelection}
+          onCancel={() => {
+            setCropSelection(null);
+            setActiveTool("select");
+          }}
+          onApply={async () => {
+            if (!cropSelection) return;
+
+            try {
+              const croppedScreenshot = await createCroppedScreenshot(
+                currentScreenshot,
+                cropSelection,
+              );
+
+              applyCrop(cropSelection, currentScreenshot);
+
+              setCurrentScreenshot(croppedScreenshot);
+              setCropSelection(null);
+              setActiveTool("select");
+
+              toast.success("Screenshot cropped successfully.");
+            } catch (error) {
+              console.error("Failed to crop screenshot:", error);
+              toast.error("Could not crop the screenshot.");
+            }
+          }}
+        />
+      ) : (
+        <EditorToolbar
+          activeTool={activeTool}
+          onToolChange={setActiveTool}
+          onNewCapture={onNewCapture}
+          onCopy={handleCopy}
+          onDownload={handleDownload}
+          onUndo={handleUndo}
+          isCopying={isCopying}
+          canUndo={canUndo}
+        />
+      )}
 
       {(activeTool === "pen" || activeTool === "highlighter") && (
         <EditorOptions
@@ -229,8 +316,9 @@ const ScreenshotEditor = ({
       )}
 
       <ScreenshotCanvas
-        screenshot={screenshot}
+        screenshot={currentScreenshot}
         activeTool={activeTool}
+        onCropSelectionChange={setCropSelection}
         strokes={strokes}
         activeStroke={activeStroke}
         arrows={arrows}
