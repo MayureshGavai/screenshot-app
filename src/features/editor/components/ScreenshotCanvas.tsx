@@ -21,6 +21,8 @@ import {
   HANDLE_RADIUS,
 } from "./canvas/canvas.constants";
 import type {
+  CropDrag,
+  CropRect,
   DragOrigin,
   DragTarget,
   EditableAnnotation,
@@ -171,6 +173,13 @@ const ScreenshotCanvas = ({
   const dragOriginRef = useRef<DragOrigin | null>(null);
 
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [cropRect, setCropRect] = useState<CropRect | null>(null);
+  const cropDragRef = useRef<CropDrag | null>(null);
+
+  const CROP_MIN_SIZE = 50;
+  const CROP_HANDLE_SIZE = 10;
+  const CROP_HANDLE_HIT_SIZE = 18;
+
   const [selectedAnnotation, setSelectedAnnotation] =
     useState<EditableAnnotation | null>(null);
   const [hoveredAnnotation, setHoveredAnnotation] =
@@ -188,7 +197,6 @@ const ScreenshotCanvas = ({
   const ERASER_DISPLAY_RADIUS = 18;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const textBoundsRef = useRef<Map<string, TextBounds>>(new Map());
 
   const handleTextBoundsChange = useCallback(
@@ -197,6 +205,21 @@ const ScreenshotCanvas = ({
     },
     [],
   );
+
+  useEffect(() => {
+    if (activeTool !== "crop" || !imageSize.width || !imageSize.height) {
+      return;
+    }
+
+    setCropRect({
+      x: 0,
+      y: 0,
+      width: imageSize.width,
+      height: imageSize.height,
+    });
+
+    cropDragRef.current = null;
+  }, [activeTool, imageSize]);
 
   useEffect(() => {
     if (activeText) {
@@ -255,11 +278,155 @@ const ScreenshotCanvas = ({
     setHoveredAnnotation(hitAnnotation);
   };
 
+  const getCropHandle = (
+    point: Point,
+    rect: CropRect,
+  ): CropResizeHandle | null => {
+    const midX = rect.x + rect.width / 2;
+    const midY = rect.y + rect.height / 2;
+
+    const handles: {
+      type: CropResizeHandle;
+      x: number;
+      y: number;
+    }[] = [
+      { type: "top-left", x: rect.x, y: rect.y },
+      { type: "top", x: midX, y: rect.y },
+      { type: "top-right", x: rect.x + rect.width, y: rect.y },
+      { type: "right", x: rect.x + rect.width, y: midY },
+      { type: "bottom-right", x: rect.x + rect.width, y: rect.y + rect.height },
+      { type: "bottom", x: midX, y: rect.y + rect.height },
+      { type: "bottom-left", x: rect.x, y: rect.y + rect.height },
+      { type: "left", x: rect.x, y: midY },
+    ];
+
+    const hit = handles.find(
+      (handle) =>
+        Math.abs(point.x - handle.x) <= CROP_HANDLE_HIT_SIZE &&
+        Math.abs(point.y - handle.y) <= CROP_HANDLE_HIT_SIZE,
+    );
+
+    return hit?.type ?? null;
+  };
+
+  const isInsideCrop = (point: Point, rect: CropRect) =>
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.width &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.height;
+
+  const updateCropResize = (
+    point: Point,
+    drag: Extract<CropDrag, { type: "resize" }>,
+  ) => {
+    const { startRect, startPointer, handle } = drag;
+
+    const dx = point.x - startPointer.x;
+    const dy = point.y - startPointer.y;
+
+    let left = startRect.x;
+    let top = startRect.y;
+    let right = startRect.x + startRect.width;
+    let bottom = startRect.y + startRect.height;
+
+    if (handle.includes("left")) {
+      left = Math.max(0, Math.min(right - CROP_MIN_SIZE, left + dx));
+    }
+
+    if (handle.includes("right")) {
+      right = Math.min(
+        imageSize.width,
+        Math.max(left + CROP_MIN_SIZE, right + dx),
+      );
+    }
+
+    if (handle.includes("top")) {
+      top = Math.max(0, Math.min(bottom - CROP_MIN_SIZE, top + dy));
+    }
+
+    if (handle.includes("bottom")) {
+      bottom = Math.min(
+        imageSize.height,
+        Math.max(top + CROP_MIN_SIZE, bottom + dy),
+      );
+    }
+
+    setCropRect({
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+    });
+  };
+
+  const handleCropPointerDown = (
+    event: PointerEvent<SVGSVGElement>,
+    point: Point,
+  ) => {
+    if (!cropRect) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const handle = getCropHandle(point, cropRect);
+
+    if (handle) {
+      cropDragRef.current = {
+        type: "resize",
+        handle,
+        startPointer: point,
+        startRect: { ...cropRect },
+      };
+      return;
+    }
+
+    if (isInsideCrop(point, cropRect)) {
+      cropDragRef.current = {
+        type: "move",
+        startPointer: point,
+        startRect: { ...cropRect },
+      };
+    }
+  };
+
+  const handleCropPointerMove = (point: Point) => {
+    const drag = cropDragRef.current;
+    if (!drag) return;
+
+    if (drag.type === "resize") {
+      updateCropResize(point, drag);
+      return;
+    }
+
+    const dx = point.x - drag.startPointer.x;
+    const dy = point.y - drag.startPointer.y;
+
+    setCropRect({
+      ...drag.startRect,
+      x: Math.max(
+        0,
+        Math.min(imageSize.width - drag.startRect.width, drag.startRect.x + dx),
+      ),
+      y: Math.max(
+        0,
+        Math.min(
+          imageSize.height - drag.startRect.height,
+          drag.startRect.y + dy,
+        ),
+      ),
+    });
+  };
+
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
 
     const point = getPoint(event);
     if (!point) return;
+
+    if (activeTool === "crop") {
+      handleCropPointerDown(event, point);
+      return;
+    }
 
     if (activeText) {
       event.preventDefault();
@@ -489,6 +656,11 @@ const ScreenshotCanvas = ({
     const point = getPoint(event);
     if (!point) return;
 
+    if (activeTool === "crop") {
+      handleCropPointerMove(point);
+      return;
+    }
+
     if (isErasing) {
       setPointerPosition(point);
       setEraserCursorRadius(getEraserRadius(event.currentTarget));
@@ -569,6 +741,15 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerUp = (event: PointerEvent<SVGSVGElement>) => {
+    if (activeTool === "crop") {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      cropDragRef.current = null;
+      return;
+    }
+
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -598,6 +779,15 @@ const ScreenshotCanvas = ({
   };
 
   const handlePointerCancel = (event: PointerEvent<SVGSVGElement>) => {
+    if (activeTool === "crop") {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      cropDragRef.current = null;
+      return;
+    }
+
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -662,13 +852,15 @@ const ScreenshotCanvas = ({
             className={`absolute inset-0 h-full w-full touch-none ${
               activeTool === "eraser"
                 ? "cursor-none"
-                : isDrawing
-                  ? "cursor-crosshair"
-                  : activeTool === "select" &&
-                      (hoveredAnnotation !== null ||
-                        selectedAnnotation !== null)
-                    ? "cursor-pointer"
-                    : "cursor-default"
+                : activeTool === "crop"
+                  ? "cursor-move"
+                  : isDrawing
+                    ? "cursor-crosshair"
+                    : activeTool === "select" &&
+                        (hoveredAnnotation !== null ||
+                          selectedAnnotation !== null)
+                      ? "cursor-pointer"
+                      : "cursor-default"
             }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -838,6 +1030,96 @@ const ScreenshotCanvas = ({
                 strokeDasharray="4 3"
                 pointerEvents="none"
               />
+            )}
+
+            {activeTool === "crop" && cropRect && (
+              <g>
+                {/* Darken the area above the selection */}
+                <rect
+                  x={0}
+                  y={0}
+                  width={imageSize.width}
+                  height={cropRect.y}
+                  fill="black"
+                  fillOpacity={0.55}
+                  pointerEvents="none"
+                />
+
+                {/* Darken the area below the selection */}
+                <rect
+                  x={0}
+                  y={cropRect.y + cropRect.height}
+                  width={imageSize.width}
+                  height={imageSize.height - cropRect.y - cropRect.height}
+                  fill="black"
+                  fillOpacity={0.55}
+                  pointerEvents="none"
+                />
+
+                {/* Darken the area left of the selection */}
+                <rect
+                  x={0}
+                  y={cropRect.y}
+                  width={cropRect.x}
+                  height={cropRect.height}
+                  fill="black"
+                  fillOpacity={0.55}
+                  pointerEvents="none"
+                />
+
+                {/* Darken the area right of the selection */}
+                <rect
+                  x={cropRect.x + cropRect.width}
+                  y={cropRect.y}
+                  width={imageSize.width - cropRect.x - cropRect.width}
+                  height={cropRect.height}
+                  fill="black"
+                  fillOpacity={0.55}
+                  pointerEvents="none"
+                />
+
+                {/* Crop selection border */}
+                <rect
+                  x={cropRect.x}
+                  y={cropRect.y}
+                  width={cropRect.width}
+                  height={cropRect.height}
+                  fill="none"
+                  stroke="white"
+                  strokeWidth={2}
+                  pointerEvents="none"
+                />
+
+                {/* Eight resize handles */}
+                {[
+                  [cropRect.x, cropRect.y],
+                  [cropRect.x + cropRect.width / 2, cropRect.y],
+                  [cropRect.x + cropRect.width, cropRect.y],
+                  [
+                    cropRect.x + cropRect.width,
+                    cropRect.y + cropRect.height / 2,
+                  ],
+                  [cropRect.x + cropRect.width, cropRect.y + cropRect.height],
+                  [
+                    cropRect.x + cropRect.width / 2,
+                    cropRect.y + cropRect.height,
+                  ],
+                  [cropRect.x, cropRect.y + cropRect.height],
+                  [cropRect.x, cropRect.y + cropRect.height / 2],
+                ].map(([x, y], index) => (
+                  <rect
+                    key={`crop-handle-${index}`}
+                    x={x - CROP_HANDLE_SIZE / 2}
+                    y={y - CROP_HANDLE_SIZE / 2}
+                    width={CROP_HANDLE_SIZE}
+                    height={CROP_HANDLE_SIZE}
+                    fill="white"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    pointerEvents="none"
+                  />
+                ))}
+              </g>
             )}
           </svg>
         )}
