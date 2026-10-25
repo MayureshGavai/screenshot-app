@@ -149,7 +149,8 @@ const ScreenshotEditor = ({
     setIsCopying(true);
 
     try {
-      const response = await fetch(currentScreenshot);
+      const exportImage = await createExportImage();
+      const response = await fetch(exportImage);
       const blob = await response.blob();
 
       if (blob.type !== "image/png") {
