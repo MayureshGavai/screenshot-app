@@ -561,61 +561,128 @@ export const useAnnotations = () => {
     [history],
   );
 
-  const pasteAnnotation = useCallback(() => {
-    const copiedItem = clipboardRef.current;
+  const pasteAnnotation = useCallback(
+    (position: Point) => {
+      const copiedItem = clipboardRef.current;
 
-    if (!copiedItem) return null;
+      if (!copiedItem) return null;
 
-    const offset = 20;
-    const id = crypto.randomUUID();
+      const id = crypto.randomUUID();
 
-    let pastedItem: AnnotationItem;
+      let pastedItem: Exclude<AnnotationItem, { kind: "stroke" }>;
 
-    switch (copiedItem.kind) {
-      case "arrow":
-      case "rectangle":
-      case "circle":
-        pastedItem = {
-          ...copiedItem,
-          value: {
-            ...copiedItem.value,
-            id,
-            start: {
-              x: copiedItem.value.start.x + offset,
-              y: copiedItem.value.start.y + offset,
+      switch (copiedItem.kind) {
+        case "arrow": {
+          const center = {
+            x: (copiedItem.value.start.x + copiedItem.value.end.x) / 2,
+            y: (copiedItem.value.start.y + copiedItem.value.end.y) / 2,
+          };
+
+          const dx = position.x - center.x;
+          const dy = position.y - center.y;
+
+          pastedItem = {
+            kind: "arrow",
+            value: {
+              ...copiedItem.value,
+              id,
+              start: {
+                x: copiedItem.value.start.x + dx,
+                y: copiedItem.value.start.y + dy,
+              },
+              end: {
+                x: copiedItem.value.end.x + dx,
+                y: copiedItem.value.end.y + dy,
+              },
             },
-            end: {
-              x: copiedItem.value.end.x + offset,
-              y: copiedItem.value.end.y + offset,
+          };
+          break;
+        }
+
+        case "rectangle": {
+          const center = {
+            x: (copiedItem.value.start.x + copiedItem.value.end.x) / 2,
+            y: (copiedItem.value.start.y + copiedItem.value.end.y) / 2,
+          };
+
+          const dx = position.x - center.x;
+          const dy = position.y - center.y;
+
+          pastedItem = {
+            kind: "rectangle",
+            value: {
+              ...copiedItem.value,
+              id,
+              start: {
+                x: copiedItem.value.start.x + dx,
+                y: copiedItem.value.start.y + dy,
+              },
+              end: {
+                x: copiedItem.value.end.x + dx,
+                y: copiedItem.value.end.y + dy,
+              },
             },
-          },
-        };
-        break;
+          };
+          break;
+        }
 
-      case "text":
-        pastedItem = {
-          ...copiedItem,
-          value: {
-            ...copiedItem.value,
-            id,
-            x: copiedItem.value.x + offset,
-            y: copiedItem.value.y + offset,
-          },
-        };
-        break;
+        case "circle": {
+          const center = {
+            x: (copiedItem.value.start.x + copiedItem.value.end.x) / 2,
+            y: (copiedItem.value.start.y + copiedItem.value.end.y) / 2,
+          };
 
-      case "stroke":
-        return null;
-    }
+          const dx = position.x - center.x;
+          const dy = position.y - center.y;
 
-    setUndoStack((previous) => [...previous, { history }]);
-    setHistory((previous) => [...previous, pastedItem]);
+          pastedItem = {
+            kind: "circle",
+            value: {
+              ...copiedItem.value,
+              id,
+              start: {
+                x: copiedItem.value.start.x + dx,
+                y: copiedItem.value.start.y + dy,
+              },
+              end: {
+                x: copiedItem.value.end.x + dx,
+                y: copiedItem.value.end.y + dy,
+              },
+            },
+          };
+          break;
+        }
 
-    return {
-      kind: pastedItem.kind as EditableAnnotationKind,
-      id,
-    };
-  }, [history]);
+        case "text": {
+          const dx = position.x - copiedItem.value.x;
+          const dy = position.y - copiedItem.value.y;
+
+          pastedItem = {
+            kind: "text",
+            value: {
+              ...copiedItem.value,
+              id,
+              x: copiedItem.value.x + dx,
+              y: copiedItem.value.y + dy,
+            },
+          };
+          break;
+        }
+
+        case "stroke":
+          return null;
+      }
+
+      setUndoStack((previous) => [...previous, { history }]);
+      setHistory((previous) => [...previous, pastedItem]);
+
+      return {
+        kind: pastedItem.kind,
+        id,
+      };
+    },
+    [history],
+  );
 
   const applyCrop = useCallback(
     (crop: CropRect, previousScreenshot: string) => {

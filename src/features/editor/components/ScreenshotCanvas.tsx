@@ -121,7 +121,7 @@ type ScreenshotCanvasProps = {
   onCropSelectionChange: (rect: CropRect | null) => void;
   onDeleteAnnotation: (id: string) => void;
   onCopyAnnotation: (id: string) => void;
-  onPasteAnnotation: () => {
+  onPasteAnnotation: (position: Point) => {
     kind: "arrow" | "rectangle" | "circle" | "text";
     id: string;
   } | null;
@@ -180,6 +180,7 @@ const ScreenshotCanvas = ({
   onPasteAnnotation,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
+  const cursorPositionRef = useRef<Point | null>(null);
 
   const dragTargetRef = useRef<DragTarget | null>(null);
   const dragOriginRef = useRef<DragOrigin | null>(null);
@@ -261,9 +262,13 @@ const ScreenshotCanvas = ({
       }
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+        const cursorPosition = cursorPositionRef.current;
+
+        if (!cursorPosition) return;
+
         event.preventDefault();
 
-        const pasted = onPasteAnnotation();
+        const pasted = onPasteAnnotation(cursorPosition);
 
         if (pasted) {
           setSelectedAnnotation(pasted);
@@ -751,6 +756,8 @@ const ScreenshotCanvas = ({
     const point = getPoint(event);
     if (!point) return;
 
+    cursorPositionRef.current = point;
+
     if (activeTool === "crop") {
       handleCropPointerMove(point);
       return;
@@ -961,7 +968,10 @@ const ScreenshotCanvas = ({
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
-            onPointerLeave={() => setPointerPosition(null)}
+            onPointerLeave={() => {
+              setPointerPosition(null);
+              cursorPositionRef.current = null;
+            }}
           >
             {visibleStrokes.map((stroke) => (
               <g key={stroke.id} opacity={stroke.opacity}>
