@@ -974,7 +974,11 @@ const ScreenshotCanvas = ({
             }}
           >
             {visibleStrokes.map((stroke) => (
-              <g key={stroke.id} opacity={stroke.opacity}>
+              <g
+                key={stroke.id}
+                opacity={stroke.opacity}
+                data-export="annotation"
+              >
                 {stroke.points.length === 1 ? (
                   <circle
                     cx={stroke.points[0].x}
@@ -996,7 +1000,7 @@ const ScreenshotCanvas = ({
             ))}
 
             {visibleRectangles.map((rectangle) => (
-              <g key={rectangle.id}>
+              <g key={rectangle.id} data-export="annotation">
                 <RectangleShape rectangle={rectangle} />
 
                 {activeTool === "select" &&
@@ -1004,6 +1008,7 @@ const ScreenshotCanvas = ({
                   rectangle.id === selectedAnnotation.id && (
                     <>
                       <rect
+                        data-editor-only="true"
                         x={Math.min(rectangle.start.x, rectangle.end.x)}
                         y={Math.min(rectangle.start.y, rectangle.end.y)}
                         width={Math.abs(rectangle.end.x - rectangle.start.x)}
@@ -1018,6 +1023,7 @@ const ScreenshotCanvas = ({
 
                       {[rectangle.start, rectangle.end].map((point, index) => (
                         <circle
+                          data-editor-only="true"
                           key={`${rectangle.id}-handle-${index}`}
                           cx={point.x}
                           cy={point.y}
@@ -1034,7 +1040,7 @@ const ScreenshotCanvas = ({
             ))}
 
             {visibleCircles.map((circle) => (
-              <g key={circle.id}>
+              <g key={circle.id} data-export="annotation">
                 <CircleShape circle={circle} />
 
                 {activeTool === "select" &&
@@ -1042,6 +1048,7 @@ const ScreenshotCanvas = ({
                   circle.id === selectedAnnotation.id && (
                     <>
                       <ellipse
+                        data-editor-only="true"
                         cx={(circle.start.x + circle.end.x) / 2}
                         cy={(circle.start.y + circle.end.y) / 2}
                         rx={Math.abs(circle.end.x - circle.start.x) / 2}
@@ -1056,6 +1063,7 @@ const ScreenshotCanvas = ({
 
                       {[circle.start, circle.end].map((point, index) => (
                         <circle
+                          data-editor-only="true"
                           key={`${circle.id}-handle-${index}`}
                           cx={point.x}
                           cy={point.y}
@@ -1072,7 +1080,7 @@ const ScreenshotCanvas = ({
             ))}
 
             {visibleArrows.map((arrow) => (
-              <g key={arrow.id}>
+              <g key={arrow.id} data-export="annotation">
                 <ArrowShape arrow={arrow} />
 
                 {activeTool === "select" &&
@@ -1080,6 +1088,7 @@ const ScreenshotCanvas = ({
                   arrow.id === selectedAnnotation.id && (
                     <>
                       <line
+                        data-editor-only="true"
                         x1={arrow.start.x}
                         y1={arrow.start.y}
                         x2={arrow.end.x}
@@ -1091,7 +1100,10 @@ const ScreenshotCanvas = ({
                       />
 
                       {[arrow.start, arrow.end].map((point, index) => (
-                        <g key={`${arrow.id}-handle-${index}`}>
+                        <g
+                          key={`${arrow.id}-handle-${index}`}
+                          data-editor-only="true"
+                        >
                           <circle
                             cx={point.x}
                             cy={point.y}

@@ -169,11 +169,89 @@ const ScreenshotEditor = ({
     }
   };
 
-  const handleDownload = async () => {
-    // setMessage("");
+  const createExportImage = async (): Promise<string> => {
+    const image = new Image();
+    image.src = currentScreenshot;
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Failed to load screenshot."));
+    });
+
+    const sourceSvg = document.querySelector<SVGSVGElement>(
+      '[aria-label="Screenshot annotation canvas"]',
+    );
+
+    if (!sourceSvg) {
+      throw new Error("Annotation canvas not found.");
+    }
+
+    const width = image.naturalWidth;
+    const height = image.naturalHeight;
+
+    // Create a clean SVG containing only actual annotations.
+    const exportSvg = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
+    );
+
+    exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    exportSvg.setAttribute("width", String(width));
+    exportSvg.setAttribute("height", String(height));
+    exportSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+    sourceSvg
+      .querySelectorAll('[data-export="annotation"]')
+      .forEach((annotation) => {
+        const clone = annotation.cloneNode(true) as SVGElement;
+
+        clone
+          .querySelectorAll("[data-editor-only]")
+          .forEach((element) => element.remove());
+
+        exportSvg.appendChild(clone);
+      });
+
+    const svgBlob = new Blob(
+      [new XMLSerializer().serializeToString(exportSvg)],
+      { type: "image/svg+xml;charset=utf-8" },
+    );
+
+    const svgUrl = URL.createObjectURL(svgBlob);
 
     try {
-      const result = await window.electronAPI.saveScreenshot(currentScreenshot);
+      const annotationImage = new Image();
+      annotationImage.src = svgUrl;
+
+      await new Promise<void>((resolve, reject) => {
+        annotationImage.onload = () => resolve();
+        annotationImage.onerror = () =>
+          reject(new Error("Failed to render annotations."));
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error("Could not create export canvas.");
+      }
+
+      context.drawImage(image, 0, 0, width, height);
+      context.drawImage(annotationImage, 0, 0, width, height);
+
+      return canvas.toDataURL("image/png");
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const exportImage = await createExportImage();
+      const result = await window.electronAPI.saveScreenshot(exportImage);
 
       if (result.canceled) return;
 
@@ -216,8 +294,6 @@ const ScreenshotEditor = ({
       setCurrentScreenshot(croppedScreenshot);
       setCropSelection(null);
       setActiveTool("select");
-
-      // toast.success("Screenshot cropped successfully.");
     } catch (error) {
       console.error("Failed to crop screenshot:", error);
       toast.error("Could not crop the screenshot.");

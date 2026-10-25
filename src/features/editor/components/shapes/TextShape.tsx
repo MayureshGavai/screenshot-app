@@ -54,7 +54,7 @@ const TextShape = ({
   ]);
 
   return (
-    <g>
+    <g data-export="annotation">
       {selected && (
         <rect
           x={textBounds.x - 4}
