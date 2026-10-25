@@ -100,6 +100,8 @@ const ScreenshotEditor = ({
     finishErase,
     applyCrop,
     deleteAnnotation,
+    copyAnnotation,
+    pasteAnnotation,
     undo,
     canUndo,
   } = useAnnotations();
@@ -381,6 +383,8 @@ const ScreenshotEditor = ({
         onEraseAnnotations={eraseAnnotations}
         onFinishErase={finishErase}
         onDeleteAnnotation={deleteAnnotation}
+        onCopyAnnotation={copyAnnotation}
+        onPasteAnnotation={pasteAnnotation}
       />
     </main>
   );

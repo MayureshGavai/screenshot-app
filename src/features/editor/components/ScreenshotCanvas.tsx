@@ -23,6 +23,7 @@ import {
 import type {
   CropDrag,
   CropRect,
+  CropResizeHandle,
   DragOrigin,
   DragTarget,
   EditableAnnotation,
@@ -119,6 +120,11 @@ type ScreenshotCanvasProps = {
   onFinishErase: () => void;
   onCropSelectionChange: (rect: CropRect | null) => void;
   onDeleteAnnotation: (id: string) => void;
+  onCopyAnnotation: (id: string) => void;
+  onPasteAnnotation: () => {
+    kind: "arrow" | "rectangle" | "circle" | "text";
+    id: string;
+  } | null;
 };
 
 const ScreenshotCanvas = ({
@@ -170,6 +176,8 @@ const ScreenshotCanvas = ({
   onFinishErase,
   onCropSelectionChange,
   onDeleteAnnotation,
+  onCopyAnnotation,
+  onPasteAnnotation,
 }: ScreenshotCanvasProps) => {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -230,6 +238,52 @@ const ScreenshotCanvas = ({
       onCropSelectionChange(cropRect);
     }
   }, [activeTool, cropRect, onCropSelectionChange]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (activeTool !== "select" || activeText) return;
+
+      const target = event.target;
+
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+        if (!selectedAnnotation) return;
+
+        event.preventDefault();
+        onCopyAnnotation(selectedAnnotation.id);
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+
+        const pasted = onPasteAnnotation();
+
+        if (pasted) {
+          setSelectedAnnotation(pasted);
+          setHoveredAnnotation(null);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    activeTool,
+    activeText,
+    selectedAnnotation,
+    onCopyAnnotation,
+    onPasteAnnotation,
+  ]);
 
   useEffect(() => {
     if (activeText) {

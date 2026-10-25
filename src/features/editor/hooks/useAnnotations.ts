@@ -18,6 +18,8 @@ type AnnotationItem =
   | { kind: "circle"; value: AnnotationCircle }
   | { kind: "text"; value: AnnotationText };
 
+type EditableAnnotationKind = "arrow" | "rectangle" | "circle" | "text";
+
 type ShapeTool = "rectangle" | "circle";
 
 type AnnotationShape = AnnotationRectangle | AnnotationCircle;
@@ -155,6 +157,8 @@ export const useAnnotations = () => {
   const editSnapshotRef = useRef<AnnotationItem[] | null>(null);
   const eraseSnapshotRef = useRef<AnnotationItem[] | null>(null);
   const hasErasedAnnotationsRef = useRef(false);
+
+  const clipboardRef = useRef<AnnotationItem | null>(null);
 
   const strokes = history
     .filter(
@@ -546,6 +550,73 @@ export const useAnnotations = () => {
     [history],
   );
 
+  const copyAnnotation = useCallback(
+    (id: string) => {
+      const item = history.find((annotation) => annotation.value.id === id);
+
+      if (!item || item.kind === "stroke") return;
+
+      clipboardRef.current = structuredClone(item);
+    },
+    [history],
+  );
+
+  const pasteAnnotation = useCallback(() => {
+    const copiedItem = clipboardRef.current;
+
+    if (!copiedItem) return null;
+
+    const offset = 20;
+    const id = crypto.randomUUID();
+
+    let pastedItem: AnnotationItem;
+
+    switch (copiedItem.kind) {
+      case "arrow":
+      case "rectangle":
+      case "circle":
+        pastedItem = {
+          ...copiedItem,
+          value: {
+            ...copiedItem.value,
+            id,
+            start: {
+              x: copiedItem.value.start.x + offset,
+              y: copiedItem.value.start.y + offset,
+            },
+            end: {
+              x: copiedItem.value.end.x + offset,
+              y: copiedItem.value.end.y + offset,
+            },
+          },
+        };
+        break;
+
+      case "text":
+        pastedItem = {
+          ...copiedItem,
+          value: {
+            ...copiedItem.value,
+            id,
+            x: copiedItem.value.x + offset,
+            y: copiedItem.value.y + offset,
+          },
+        };
+        break;
+
+      case "stroke":
+        return null;
+    }
+
+    setUndoStack((previous) => [...previous, { history }]);
+    setHistory((previous) => [...previous, pastedItem]);
+
+    return {
+      kind: pastedItem.kind as EditableAnnotationKind,
+      id,
+    };
+  }, [history]);
+
   const applyCrop = useCallback(
     (crop: CropRect, previousScreenshot: string) => {
       // Finish any temporary drawing/editing state before cropping.
@@ -635,6 +706,8 @@ export const useAnnotations = () => {
     finishErase,
     deleteAnnotation,
     applyCrop,
+    copyAnnotation,
+    pasteAnnotation,
     undo,
     canUndo: undoStack.length > 0,
   };
