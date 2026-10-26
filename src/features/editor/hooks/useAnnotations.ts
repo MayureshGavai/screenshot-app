@@ -140,6 +140,7 @@ const cropAnnotation = (
 export const useAnnotations = () => {
   const [history, setHistory] = useState<AnnotationItem[]>([]);
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<UndoEntry[]>([]);
 
   const [activeStroke, setActiveStroke] = useState<AnnotationStroke | null>(
     null,
@@ -221,6 +222,7 @@ export const useAnnotations = () => {
   const finishStroke = useCallback(() => {
     if (activeStroke) {
       setUndoStack((previous) => [...previous, { history }]);
+      setRedoStack([]);
       setHistory((previous) => [
         ...previous,
         { kind: "stroke", value: activeStroke },
@@ -259,6 +261,7 @@ export const useAnnotations = () => {
 
       if (distance >= 3) {
         setUndoStack((previous) => [...previous, { history }]);
+        setRedoStack([]);
         setHistory((previous) => [
           ...previous,
           { kind: "arrow", value: activeArrow },
@@ -319,6 +322,8 @@ export const useAnnotations = () => {
 
         if (distance >= 3) {
           setUndoStack((previous) => [...previous, { history }]);
+          setRedoStack([]);
+
           setHistory((previous) => [
             ...previous,
             tool === "rectangle"
@@ -439,6 +444,7 @@ export const useAnnotations = () => {
 
     if (changed) {
       setUndoStack((previous) => [...previous, { history: originalHistory }]);
+      setRedoStack([]);
     }
   }, [history]);
 
@@ -488,6 +494,8 @@ export const useAnnotations = () => {
   const finishText = useCallback(() => {
     if (activeText?.text.trim()) {
       setUndoStack((previous) => [...previous, { history }]);
+      setRedoStack([]);
+
       setHistory((previous) => [
         ...previous,
         { kind: "text", value: activeText },
@@ -531,6 +539,7 @@ export const useAnnotations = () => {
 
     if (hasErasedAnnotationsRef.current) {
       setUndoStack((previous) => [...previous, { history: originalHistory }]);
+      setRedoStack([]);
     }
 
     eraseSnapshotRef.current = null;
@@ -544,7 +553,7 @@ export const useAnnotations = () => {
       if (!exists) return;
 
       setUndoStack((previous) => [...previous, { history }]);
-
+      setRedoStack([]);
       setHistory((previous) => previous.filter((item) => item.value.id !== id));
     },
     [history],
@@ -674,6 +683,7 @@ export const useAnnotations = () => {
       }
 
       setUndoStack((previous) => [...previous, { history }]);
+      setRedoStack([]);
       setHistory((previous) => [...previous, pastedItem]);
 
       return {
@@ -705,6 +715,7 @@ export const useAnnotations = () => {
           screenshot: previousScreenshot,
         },
       ]);
+      setRedoStack([]);
 
       setHistory((previous) =>
         previous.reduce<AnnotationItem[]>((result, item) => {
@@ -721,20 +732,52 @@ export const useAnnotations = () => {
     [history],
   );
 
-  const undo = useCallback((): string | null => {
-    if (editSnapshotRef.current !== null || eraseSnapshotRef.current) {
-      return null;
-    }
+  const undo = useCallback(
+    (currentScreenshot: string): string | null => {
+      if (editSnapshotRef.current !== null || eraseSnapshotRef.current) {
+        return null;
+      }
 
-    if (undoStack.length === 0) return null;
+      if (undoStack.length === 0) return null;
 
-    const previousEntry = undoStack[undoStack.length - 1];
+      const previousEntry = undoStack[undoStack.length - 1];
 
-    setHistory(previousEntry.history);
-    setUndoStack((previous) => previous.slice(0, -1));
+      // Save current state so Redo can restore it.
+      setRedoStack((previous) => [
+        ...previous,
+        { history, screenshot: currentScreenshot },
+      ]);
 
-    return previousEntry.screenshot ?? null;
-  }, [undoStack]);
+      setHistory(previousEntry.history);
+      setUndoStack((previous) => previous.slice(0, -1));
+
+      return previousEntry.screenshot ?? null;
+    },
+    [undoStack, history],
+  );
+
+  const redo = useCallback(
+    (currentScreenshot: string): string | null => {
+      if (editSnapshotRef.current !== null || eraseSnapshotRef.current) {
+        return null;
+      }
+
+      if (redoStack.length === 0) return null;
+
+      const nextEntry = redoStack[redoStack.length - 1];
+
+      setUndoStack((previous) => [
+        ...previous,
+        { history, screenshot: currentScreenshot },
+      ]);
+
+      setHistory(nextEntry.history);
+      setRedoStack((previous) => previous.slice(0, -1));
+
+      return nextEntry.screenshot ?? null;
+    },
+    [redoStack, history],
+  );
 
   return {
     strokes,
@@ -776,6 +819,8 @@ export const useAnnotations = () => {
     copyAnnotation,
     pasteAnnotation,
     undo,
+    redo,
     canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
   };
 };

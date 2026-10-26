@@ -254,6 +254,13 @@ const ScreenshotCanvas = ({
         return;
       }
 
+      if (event.key === "Escape" && selectedAnnotation) {
+        event.preventDefault();
+        setSelectedAnnotation(null);
+        setHoveredAnnotation(null);
+        return;
+      }
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
         if (!selectedAnnotation) return;
 
@@ -310,7 +317,7 @@ const ScreenshotCanvas = ({
         return;
       }
 
-      if (event.key === "Delete") {
+      if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
 
         onDeleteAnnotation(selectedAnnotation.id);

@@ -103,7 +103,9 @@ const ScreenshotEditor = ({
     copyAnnotation,
     pasteAnnotation,
     undo,
+    redo,
     canUndo,
+    canRedo,
   } = useAnnotations();
 
   const createCroppedScreenshot = async (
@@ -267,10 +269,22 @@ const ScreenshotEditor = ({
   const handleUndo = () => {
     if (!canUndo) return;
 
-    const previousScreenshot = undo();
+    const previousScreenshot = undo(currentScreenshot);
 
     if (previousScreenshot) {
       setCurrentScreenshot(previousScreenshot);
+      setCropSelection(null);
+      setActiveTool("select");
+    }
+  };
+
+  const handleRedo = () => {
+    if (!canRedo) return;
+
+    const nextScreenshot = redo(currentScreenshot);
+
+    if (nextScreenshot) {
+      setCurrentScreenshot(nextScreenshot);
       setCropSelection(null);
       setActiveTool("select");
     }
@@ -300,6 +314,54 @@ const ScreenshotEditor = ({
       toast.error("Could not crop the screenshot.");
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+
+      // Don't trigger global shortcuts while typing.
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      const isModifierPressed = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+
+      if (isModifierPressed && key === "z") {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+
+        return;
+      }
+
+      if (isModifierPressed && key === "s") {
+        event.preventDefault();
+        void handleDownload();
+        return;
+      }
+
+      if (event.key === "Escape" && activeTool === "crop") {
+        event.preventDefault();
+        setCropSelection(null);
+        setActiveTool("select");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeTool, canUndo, canRedo, currentScreenshot, undo, redo]);
 
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
