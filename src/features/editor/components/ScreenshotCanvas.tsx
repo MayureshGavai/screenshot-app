@@ -242,8 +242,6 @@ const ScreenshotCanvas = ({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (activeTool !== "select" || activeText) return;
-
       const target = event.target;
 
       if (
@@ -254,21 +252,37 @@ const ScreenshotCanvas = ({
         return;
       }
 
-      if (event.key === "Escape" && selectedAnnotation) {
-        event.preventDefault();
-        setSelectedAnnotation(null);
-        setHoveredAnnotation(null);
+      // Escape: deselect the selected annotation.
+      if (event.key === "Escape" && activeTool === "select") {
+        if (selectedAnnotation) {
+          event.preventDefault();
+          setSelectedAnnotation(null);
+          setHoveredAnnotation(null);
+        }
+
         return;
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+      // Copy selected annotation.
+      if (
+        activeTool === "select" &&
+        !activeText &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "c"
+      ) {
         if (!selectedAnnotation) return;
 
         event.preventDefault();
         onCopyAnnotation(selectedAnnotation.id);
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+      // Paste annotation at cursor position.
+      if (
+        activeTool === "select" &&
+        !activeText &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "v"
+      ) {
         const cursorPosition = cursorPositionRef.current;
 
         if (!cursorPosition) return;
@@ -950,13 +964,13 @@ const ScreenshotCanvas = ({
               height: event.currentTarget.naturalHeight,
             });
           }}
-          className="block h-auto max-h-full max-w-full select-none object-contain"
+          className="block h-auto w-auto max-h-full max-w-full select-none"
         />
 
         {imageSize.width > 0 && imageSize.height > 0 && (
           <svg
             viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-            preserveAspectRatio="none"
+            preserveAspectRatio="xMidYMid meet"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full touch-none ${
               activeTool === "eraser"

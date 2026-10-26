@@ -328,6 +328,18 @@ const ScreenshotEditor = ({
         return;
       }
 
+      // Escape: cancel crop or switch to Select tool.
+      if (event.key === "Escape") {
+        event.preventDefault();
+
+        if (activeTool === "crop") {
+          setCropSelection(null);
+        }
+
+        setActiveTool("select");
+        return;
+      }
+
       const isModifierPressed = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
 
@@ -347,12 +359,6 @@ const ScreenshotEditor = ({
         event.preventDefault();
         void handleDownload();
         return;
-      }
-
-      if (event.key === "Escape" && activeTool === "crop") {
-        event.preventDefault();
-        setCropSelection(null);
-        setActiveTool("select");
       }
     };
 
