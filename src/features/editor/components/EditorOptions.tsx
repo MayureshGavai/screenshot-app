@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ANNOTATION_COLORS } from "../../../constants/colors";
 
 type EditorOptionsProps = {
@@ -62,9 +63,28 @@ const EditorOptions = ({
   onFontSizeChange,
   onFontWeightChange,
 }: EditorOptionsProps) => {
+  const [shapeColorTarget, setShapeColorTarget] = useState<"outline" | "fill">(
+    "outline",
+  );
+
   const isHighlighter = tool === "highlighter";
   const isShape = tool === "rectangle" || tool === "circle";
   const isText = tool === "text";
+
+  const selectedShapeColor = shapeColorTarget === "outline" ? color : fillColor;
+
+  const handleShapeColorChange = (selected: string) => {
+    if (shapeColorTarget === "outline") {
+      onColorChange(selected);
+      return;
+    }
+
+    onFillColorChange?.(selected);
+
+    if (!fillEnabled) {
+      onFillEnabledChange?.(true);
+    }
+  };
 
   const toolLabel =
     tool === "text"
@@ -78,7 +98,11 @@ const EditorOptions = ({
             : "Pen";
 
   return (
-    <div className="w-56 rounded-lg border border-border bg-app-bg p-3 shadow-xl">
+    <div
+      className={`${
+        isShape ? "w-72 sm:w-80" : "w-56"
+      } rounded-lg border border-border bg-app-bg p-3 shadow-xl`}
+    >
       {/* Shape outline and fill controls */}
       {isShape && (
         <>
@@ -101,26 +125,47 @@ const EditorOptions = ({
           </div>
 
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <div className="rounded-md border border-border p-2">
-              <span className="mb-2 block text-xs text-muted-foreground">
-                Outline
-              </span>
-              <ColorPalette selectedColor={color} onChange={onColorChange} />
-            </div>
-
-            <div className="rounded-md border border-border p-2">
-              <span className="mb-2 block text-xs text-muted-foreground">
-                Fill color
-              </span>
-              <ColorPalette
-                selectedColor={fillColor}
-                onChange={(selected) => {
-                  onFillColorChange?.(selected);
-                  if (!fillEnabled) onFillEnabledChange?.(true);
-                }}
+            <button
+              type="button"
+              onClick={() => setShapeColorTarget("outline")}
+              className={`rounded-md border p-2 text-xs transition-colors ${
+                shapeColorTarget === "outline"
+                  ? "border-primary bg-accent text-accent-foreground"
+                  : "border-border hover:bg-muted"
+              }`}
+            >
+              <span className="mb-2 block">Outline</span>
+              <span
+                className="mx-auto block size-5 rounded-full border border-border"
+                style={{ backgroundColor: color }}
               />
-            </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShapeColorTarget("fill")}
+              className={`rounded-md border p-2 text-xs transition-colors ${
+                shapeColorTarget === "fill"
+                  ? "border-primary bg-accent text-accent-foreground"
+                  : "border-border hover:bg-muted"
+              }`}
+            >
+              <span className="mb-2 block">Fill color</span>
+              <span
+                className="mx-auto block size-5 rounded-full border border-border"
+                style={{ backgroundColor: fillColor }}
+              />
+            </button>
           </div>
+
+          <div className="mb-2 text-xs font-medium text-muted-foreground">
+            {shapeColorTarget === "outline" ? "Outline color" : "Fill color"}
+          </div>
+
+          <ColorPalette
+            selectedColor={selectedShapeColor}
+            onChange={handleShapeColorChange}
+          />
         </>
       )}
 

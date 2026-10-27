@@ -14,7 +14,7 @@ import {
   Type,
   Undo2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { EditorTool } from "../types/editor.types";
 import EditorToolButton from "./EditorToolButton";
@@ -37,22 +37,6 @@ type EditorToolbarProps = {
   onUndo: () => void;
   isCopying: boolean;
   canUndo: boolean;
-
-  // Existing editor option values and callbacks
-  color: string;
-  width: number;
-  onColorChange: (color: string) => void;
-  onWidthChange: (width: number) => void;
-  fillEnabled?: boolean;
-  fillColor?: string;
-  fillOpacity?: number;
-  onFillEnabledChange?: (enabled: boolean) => void;
-  onFillColorChange?: (color: string) => void;
-  onFillOpacityChange?: (opacity: number) => void;
-  fontSize?: number;
-  fontWeight?: "normal" | "bold";
-  onFontSizeChange?: (size: number) => void;
-  onFontWeightChange?: (weight: "normal" | "bold") => void;
 
   penColor: string;
   penWidth: number;
@@ -117,20 +101,6 @@ const EditorToolbar = ({
   onUndo,
   isCopying,
   canUndo,
-  color,
-  width,
-  onColorChange,
-  onWidthChange,
-  fillEnabled,
-  fillColor,
-  fillOpacity,
-  onFillEnabledChange,
-  onFillColorChange,
-  onFillOpacityChange,
-  fontSize,
-  fontWeight,
-  onFontSizeChange,
-  onFontWeightChange,
   penColor,
   penWidth,
   onPenColorChange,
@@ -178,6 +148,8 @@ const EditorToolbar = ({
   const [openOptionsTool, setOpenOptionsTool] =
     useState<ConfigurableTool | null>(null);
 
+  const toolbarRef = useRef<HTMLElement>(null);
+
   const tools = [
     { id: "select", label: "Select", icon: MousePointer2 },
     { id: "crop", label: "Crop", icon: Crop },
@@ -193,6 +165,23 @@ const EditorToolbar = ({
     label: string;
     icon: typeof MousePointer2;
   }>;
+
+  useEffect(() => {
+    const handleOutsideClick = (event: PointerEvent) => {
+      if (
+        toolbarRef.current &&
+        !toolbarRef.current.contains(event.target as Node)
+      ) {
+        setOpenOptionsTool(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+    };
+  }, []);
 
   const handleToolSelect = (tool: EditorTool) => {
     if (activeTool === tool) {
@@ -221,7 +210,10 @@ const EditorToolbar = ({
     openOptionsTool !== null && activeTool === openOptionsTool;
 
   return (
-    <header className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2">
+    <header
+      ref={toolbarRef}
+      className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2"
+    >
       {/* Left: New capture */}
       <div className="flex shrink-0 items-center">
         <button
@@ -244,34 +236,23 @@ const EditorToolbar = ({
           );
 
           return (
-            <div key={id} className="flex shrink-0 items-center">
-              <EditorToolButton
-                label={label}
-                icon={<Icon size={17} />}
-                isActive={activeTool === id}
-                onClick={() => handleToolSelect(id)}
-              />
-
-              {hasOptions && (
-                <button
-                  type="button"
-                  title={`${label} options`}
-                  aria-label={`${label} options`}
-                  aria-expanded={openOptionsTool === id}
-                  onClick={() => handleOptionsToggle(id as ConfigurableTool)}
-                  className={`-ml-1 flex size-6 items-center justify-center rounded-md transition-colors hover:bg-muted ${
-                    activeTool === id ? "text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  <ChevronDown
-                    size={13}
-                    className={`transition-transform ${
-                      openOptionsTool === id ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              )}
-            </div>
+            <EditorToolButton
+              key={id}
+              label={label}
+              icon={<Icon size={17} />}
+              isActive={activeTool === id}
+              onClick={() => handleToolSelect(id)}
+              dropdown={
+                hasOptions && activeTool === id
+                  ? {
+                      label: `${label} options`,
+                      expanded: openOptionsTool === id,
+                      onClick: () =>
+                        handleOptionsToggle(id as ConfigurableTool),
+                    }
+                  : undefined
+              }
+            />
           );
         })}
 
