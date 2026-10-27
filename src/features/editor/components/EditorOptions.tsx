@@ -1,3 +1,5 @@
+import { ANNOTATION_COLORS } from "../../../constants/colors";
+
 type EditorOptionsProps = {
   tool: "pen" | "highlighter" | "rectangle" | "circle" | "text";
   color: string;
@@ -15,6 +17,33 @@ type EditorOptionsProps = {
   onFontSizeChange?: (size: number) => void;
   onFontWeightChange?: (weight: "normal" | "bold") => void;
 };
+
+const ColorPalette = ({
+  selectedColor,
+  onChange,
+}: {
+  selectedColor: string;
+  onChange: (color: string) => void;
+}) => (
+  <div className="grid grid-cols-4 gap-2">
+    {ANNOTATION_COLORS.map((item) => (
+      <button
+        key={item}
+        type="button"
+        title={item}
+        aria-label={`Select color ${item}`}
+        aria-pressed={selectedColor.toLowerCase() === item.toLowerCase()}
+        onClick={() => onChange(item)}
+        className={`size-7 rounded-full border border-border transition hover:scale-110 ${
+          selectedColor.toLowerCase() === item.toLowerCase()
+            ? "ring-2 ring-primary ring-offset-2"
+            : ""
+        }`}
+        style={{ backgroundColor: item }}
+      />
+    ))}
+  </div>
+);
 
 const EditorOptions = ({
   tool,
@@ -34,9 +63,7 @@ const EditorOptions = ({
   onFontWeightChange,
 }: EditorOptionsProps) => {
   const isHighlighter = tool === "highlighter";
-
   const isShape = tool === "rectangle" || tool === "circle";
-
   const isText = tool === "text";
 
   const toolLabel =
@@ -51,25 +78,74 @@ const EditorOptions = ({
             : "Pen";
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">
-          {isShape ? "Border color" : "Color"}
-        </span>
-        <input
-          type="color"
-          aria-label={`${toolLabel} color`}
-          value={color}
-          onChange={(event) => onColorChange(event.target.value)}
-          className="size-7 cursor-pointer rounded border border-border bg-transparent p-0.5"
-        />
-      </label>
+    <div className="w-56 rounded-lg border border-border bg-app-bg p-3 shadow-xl">
+      {/* Shape outline and fill controls */}
+      {isShape && (
+        <>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              Shape style
+            </span>
+
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={fillEnabled}
+                onChange={(event) =>
+                  onFillEnabledChange?.(event.target.checked)
+                }
+                className="size-3.5 accent-primary"
+              />
+              Fill enabled
+            </label>
+          </div>
+
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="rounded-md border border-border p-2">
+              <span className="mb-2 block text-xs text-muted-foreground">
+                Outline
+              </span>
+              <ColorPalette selectedColor={color} onChange={onColorChange} />
+            </div>
+
+            <div className="rounded-md border border-border p-2">
+              <span className="mb-2 block text-xs text-muted-foreground">
+                Fill color
+              </span>
+              <ColorPalette
+                selectedColor={fillColor}
+                onChange={(selected) => {
+                  onFillColorChange?.(selected);
+                  if (!fillEnabled) onFillEnabledChange?.(true);
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Main color palette for pen, highlighter and text */}
+      {!isShape && (
+        <>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">
+            {toolLabel} color
+          </div>
+
+          <ColorPalette selectedColor={color} onChange={onColorChange} />
+        </>
+      )}
+
+      {/* Width / font size */}
+      <div className="my-3 border-t border-border" />
 
       {!isText && (
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">
-            {isShape ? "Border width" : "Thickness"}
-          </span>
+        <label className="block">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-medium text-muted-foreground">
+              {isShape ? "Border width" : "Thickness"}
+            </span>
+            <span className="tabular-nums">{width}px</span>
+          </div>
 
           <input
             type="range"
@@ -79,17 +155,20 @@ const EditorOptions = ({
             step={1}
             value={width}
             onChange={(event) => onWidthChange(Number(event.target.value))}
-            className="h-1 w-24 accent-primary"
+            className="h-1.5 w-full cursor-pointer accent-primary"
           />
-
-          <span className="w-5 text-right tabular-nums">{width}</span>
         </label>
       )}
 
       {isText && (
         <>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Font size</span>
+          <label className="block">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="font-medium text-muted-foreground">
+                Font size
+              </span>
+              <span className="tabular-nums">{fontSize}px</span>
+            </div>
 
             <input
               type="range"
@@ -101,74 +180,52 @@ const EditorOptions = ({
               onChange={(event) =>
                 onFontSizeChange?.(Number(event.target.value))
               }
-              className="h-1 w-24 accent-primary"
+              className="h-1.5 w-full cursor-pointer accent-primary"
             />
-
-            <span className="w-7 text-right tabular-nums">{fontSize}</span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs">
             <input
               type="checkbox"
               checked={fontWeight === "bold"}
               onChange={(event) =>
                 onFontWeightChange?.(event.target.checked ? "bold" : "normal")
               }
-              className="size-4 accent-primary"
+              className="size-3.5 accent-primary"
             />
-            <span className="text-muted-foreground">Bold</span>
+            Bold text
           </label>
         </>
       )}
 
-      {isShape && (
+      {/* Shape fill opacity */}
+      {isShape && fillEnabled && (
         <>
-          <label className="flex items-center gap-2 text-sm">
+          <div className="my-3 border-t border-border" />
+
+          <label className="block">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="font-medium text-muted-foreground">
+                Fill opacity
+              </span>
+              <span className="tabular-nums">
+                {Math.round(fillOpacity * 100)}%
+              </span>
+            </div>
+
             <input
-              type="checkbox"
-              checked={fillEnabled}
-              onChange={(event) => onFillEnabledChange?.(event.target.checked)}
-              className="size-4 accent-primary"
+              type="range"
+              aria-label={`${toolLabel} fill opacity`}
+              min={0}
+              max={1}
+              step={0.05}
+              value={fillOpacity}
+              onChange={(event) =>
+                onFillOpacityChange?.(Number(event.target.value))
+              }
+              className="h-1.5 w-full cursor-pointer accent-primary"
             />
-            <span className="text-muted-foreground">Fill</span>
           </label>
-
-          {fillEnabled && (
-            <>
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Fill color</span>
-
-                <input
-                  type="color"
-                  aria-label={`${toolLabel} fill color`}
-                  value={fillColor}
-                  onChange={(event) => onFillColorChange?.(event.target.value)}
-                  className="size-7 cursor-pointer rounded border border-border bg-transparent p-0.5"
-                />
-              </label>
-
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Opacity</span>
-
-                <input
-                  type="range"
-                  aria-label={`${toolLabel} fill opacity`}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={fillOpacity}
-                  onChange={(event) =>
-                    onFillOpacityChange?.(Number(event.target.value))
-                  }
-                  className="h-1 w-24 accent-primary"
-                />
-
-                <span className="w-10 text-right tabular-nums">
-                  {Math.round(fillOpacity * 100)}%
-                </span>
-              </label>
-            </>
-          )}
         </>
       )}
     </div>

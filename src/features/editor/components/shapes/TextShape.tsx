@@ -57,6 +57,7 @@ const TextShape = ({
     <g data-export="annotation">
       {selected && (
         <rect
+          data-editor-only="true"
           x={textBounds.x - 4}
           y={textBounds.y - 4}
           width={textBounds.width + 8}

@@ -390,78 +390,50 @@ const ScreenshotEditor = ({
           onUndo={handleUndo}
           isCopying={isCopying}
           canUndo={canUndo}
-        />
-      )}
-
-      {(activeTool === "pen" || activeTool === "highlighter") && (
-        <EditorOptions
-          tool={activeTool}
-          color={activeTool === "highlighter" ? highlighterColor : penColor}
-          width={activeTool === "highlighter" ? highlighterWidth : penWidth}
-          onColorChange={
-            activeTool === "highlighter" ? setHighlighterColor : setPenColor
-          }
-          onWidthChange={
-            activeTool === "highlighter" ? setHighlighterWidth : setPenWidth
-          }
-        />
-      )}
-
-      {activeTool === "arrow" && (
-        <EditorOptions
-          tool="pen"
-          color={arrowColor}
-          width={arrowWidth}
-          onColorChange={setArrowColor}
-          onWidthChange={setArrowWidth}
-        />
-      )}
-
-      {/* Rectangle options */}
-      {activeTool === "rectangle" && (
-        <EditorOptions
-          tool="rectangle"
-          color={rectangleColor}
-          width={rectangleWidth}
-          onColorChange={setRectangleColor}
-          onWidthChange={setRectangleWidth}
-          fillEnabled={rectangleFillEnabled}
-          fillColor={rectangleFillColor}
-          fillOpacity={rectangleFillOpacity}
-          onFillEnabledChange={setRectangleFillEnabled}
-          onFillColorChange={setRectangleFillColor}
-          onFillOpacityChange={setRectangleFillOpacity}
-        />
-      )}
-
-      {/* Circle options */}
-      {activeTool === "circle" && (
-        <EditorOptions
-          tool="circle"
-          color={circleColor}
-          width={circleWidth}
-          onColorChange={setCircleColor}
-          onWidthChange={setCircleWidth}
-          fillEnabled={circleFillEnabled}
-          fillColor={circleFillColor}
-          fillOpacity={circleFillOpacity}
-          onFillEnabledChange={setCircleFillEnabled}
-          onFillColorChange={setCircleFillColor}
-          onFillOpacityChange={setCircleFillOpacity}
-        />
-      )}
-
-      {activeTool === "text" && (
-        <EditorOptions
-          tool="text"
-          color={textColor}
-          width={textFontSize}
-          onColorChange={setTextColor}
-          onWidthChange={setTextFontSize}
-          fontSize={textFontSize}
-          fontWeight={textFontWeight}
-          onFontSizeChange={setTextFontSize}
-          onFontWeightChange={setTextFontWeight}
+          // Pen
+          penColor={penColor}
+          penWidth={penWidth}
+          onPenColorChange={setPenColor}
+          onPenWidthChange={setPenWidth}
+          // Highlighter
+          highlighterColor={highlighterColor}
+          highlighterWidth={highlighterWidth}
+          onHighlighterColorChange={setHighlighterColor}
+          onHighlighterWidthChange={setHighlighterWidth}
+          // Arrow
+          arrowColor={arrowColor}
+          arrowWidth={arrowWidth}
+          onArrowColorChange={setArrowColor}
+          onArrowWidthChange={setArrowWidth}
+          // Rectangle
+          rectangleColor={rectangleColor}
+          rectangleWidth={rectangleWidth}
+          rectangleFillEnabled={rectangleFillEnabled}
+          rectangleFillColor={rectangleFillColor}
+          rectangleFillOpacity={rectangleFillOpacity}
+          onRectangleColorChange={setRectangleColor}
+          onRectangleWidthChange={setRectangleWidth}
+          onRectangleFillEnabledChange={setRectangleFillEnabled}
+          onRectangleFillColorChange={setRectangleFillColor}
+          onRectangleFillOpacityChange={setRectangleFillOpacity}
+          // Circle
+          circleColor={circleColor}
+          circleWidth={circleWidth}
+          circleFillEnabled={circleFillEnabled}
+          circleFillColor={circleFillColor}
+          circleFillOpacity={circleFillOpacity}
+          onCircleColorChange={setCircleColor}
+          onCircleWidthChange={setCircleWidth}
+          onCircleFillEnabledChange={setCircleFillEnabled}
+          onCircleFillColorChange={setCircleFillColor}
+          onCircleFillOpacityChange={setCircleFillOpacity}
+          // Text
+          textColor={textColor}
+          textFontSize={textFontSize}
+          textFontWeight={textFontWeight}
+          onTextColorChange={setTextColor}
+          onTextFontSizeChange={setTextFontSize}
+          onTextFontWeightChange={setTextFontWeight}
         />
       )}
 
