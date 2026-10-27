@@ -212,10 +212,10 @@ const EditorToolbar = ({
   return (
     <header
       ref={toolbarRef}
-      className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2"
+      className="relative z-30 flex h-16 min-h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3"
     >
       {/* Left: New capture */}
-      <div className="flex shrink-0 items-center">
+      <div className="flex h-13 shrink-0 items-start">
         <button
           type="button"
           onClick={onNewCapture}
@@ -229,52 +229,54 @@ const EditorToolbar = ({
       </div>
 
       {/* Middle: Editing tools */}
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto">
-        {tools.map(({ id, label, icon: Icon }) => {
-          const hasOptions = CONFIGURABLE_TOOLS.includes(
-            id as ConfigurableTool,
-          );
+      <div className="relative flex h-13 min-w-0 flex-1 items-center justify-center">
+        <div className="flex h-13 min-w-0 max-w-full items-center justify-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-none [&::-webkit-scrollbar]:hidden">
+          {tools.map(({ id, label, icon: Icon }) => {
+            const hasOptions = CONFIGURABLE_TOOLS.includes(
+              id as ConfigurableTool,
+            );
 
-          return (
-            <EditorToolButton
-              key={id}
-              label={label}
-              icon={<Icon size={17} />}
-              isActive={activeTool === id}
-              onClick={() => handleToolSelect(id)}
-              dropdown={
-                hasOptions && activeTool === id
-                  ? {
-                      label: `${label} options`,
-                      expanded: openOptionsTool === id,
-                      onClick: () =>
-                        handleOptionsToggle(id as ConfigurableTool),
-                    }
-                  : undefined
-              }
-            />
-          );
-        })}
+            return (
+              <EditorToolButton
+                key={id}
+                label={label}
+                icon={<Icon size={17} />}
+                isActive={activeTool === id}
+                onClick={() => handleToolSelect(id)}
+                dropdown={
+                  hasOptions
+                    ? {
+                        label: `${label} options`,
+                        expanded: openOptionsTool === id,
+                        onClick: () =>
+                          handleOptionsToggle(id as ConfigurableTool),
+                      }
+                    : undefined
+                }
+              />
+            );
+          })}
 
-        <div className="mx-1 h-6 w-px shrink-0 bg-border" />
+          <div className="mx-1 h-6 w-px shrink-0 bg-border" />
 
-        <EditorToolButton
-          label="Undo"
-          icon={<Undo2 size={17} />}
-          disabled={!canUndo}
-          onClick={onUndo}
-        />
+          <EditorToolButton
+            label="Undo"
+            icon={<Undo2 size={17} />}
+            disabled={!canUndo}
+            onClick={onUndo}
+          />
+        </div>
       </div>
 
       {/* Right: Copy and download */}
-      <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
+      <div className="relative z-30 flex h-13 shrink-0 items-start gap-3">
+        {" "}
         <EditorToolButton
           label={isCopying ? "Copying screenshot" : "Copy screenshot"}
           icon={<Copy size={17} />}
           disabled={isCopying}
           onClick={onCopy}
         />
-
         <EditorToolButton
           label="Download screenshot"
           icon={<Download size={17} />}
