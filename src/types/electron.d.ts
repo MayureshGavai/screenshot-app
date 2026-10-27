@@ -24,7 +24,7 @@ declare global {
         success: boolean;
       }>;
       onScreenshotReady: (callback: (dataUrl: string) => void) => () => void;
-      startNewCapture: () => Promise<void>;
+      startNewCapture: () => Promise<{ success: boolean }>;
     };
   }
 }

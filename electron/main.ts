@@ -181,23 +181,29 @@ const createToolbarWindow = async (): Promise<void> => {
   }
 };
 
-const startCaptureSession = async (): Promise<void> => {
+const startCaptureSession = async (): Promise<boolean> => {
   if (isCaptureStarting || (toolbarWindow && !toolbarWindow.isDestroyed())) {
-    return;
+    return false;
   }
 
   isCaptureStarting = true;
+
   try {
     captureSnapshot = await captureDesktopSnapshot();
     await createToolbarWindow();
+
+    return true;
   } catch (error) {
-    console.error("could not start capture session:", error);
+    console.error("Could not start capture session:", error);
 
     captureSnapshot = null;
+
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
     }
+
+    return false;
   } finally {
     isCaptureStarting = false;
   }
@@ -450,8 +456,8 @@ ipcMain.handle("start-new-capture", async (event) => {
     throw new Error("Only the main window can start a new capture");
   }
 
-  await startCaptureSession();
-  return { success: true };
+  const success = await startCaptureSession();
+  return { success };
 });
 
 app.whenReady().then(async () => {

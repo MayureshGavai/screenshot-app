@@ -4,14 +4,28 @@ import { Monitor } from "lucide-react";
 import LandingHeader from "./components/LandingHeader";
 import LandingHero from "./components/LandingHero";
 import WorkflowSteps from "./components/WorkflowSteps";
+import { toast } from "sonner";
 
 export default function LandingPage() {
-  const [notice, setNotice] = useState("");
+  const [isCapturing, setIsCapturing] = useState(false);
 
-  function handleStartCapture() {
-    setNotice(
-      "Capture is not connected yet. We'll implement desktop region selection in Phase 2.",
-    );
+  async function handleStartCapture() {
+    if (isCapturing) return;
+
+    setIsCapturing(true);
+
+    try {
+      const result = await window.electronAPI.startNewCapture();
+
+      if (!result.success) {
+        toast.info("Unable to start screenshot capture. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to start screenshot capture:", error);
+      toast.error("Something went wrong while starting capture.");
+    } finally {
+      setIsCapturing(false);
+    }
   }
 
   return (
@@ -22,12 +36,6 @@ export default function LandingPage() {
         <LandingHero onStartCapture={handleStartCapture} />
 
         <WorkflowSteps />
-
-        {notice && (
-          <div className="notice" role="status">
-            {notice}
-          </div>
-        )}
 
         <footer className="app-footer">
           <span>Made for a clearer workflow.</span>
