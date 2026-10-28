@@ -1,5 +1,5 @@
 {
-  "name": "screenshot-app",
+  "name": "snapmark",
   "version": "1.0.0",
   "type": "module",
   "description": "Desktop screenshot and annotation application",
@@ -40,8 +40,8 @@
     "wait-on": "^9.5.1"
   },
   "build": {
-    "appId": "com.screenshotapp.desktop",
-    "productName": "Screenshot App",
+    "appId": "com.snapmark.desktop",
+    "productName": "Snapmark",
     "directories": {
       "output": "release"
     },

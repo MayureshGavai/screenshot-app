@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const APP_ID = "com.screenshotapp.desktop";
+const APP_ID = "com.snapmark.desktop";
 const DEV_SERVER_URL = "http://localhost:5173";
 const MAX_PNG_BYTES = 100 * 1024 * 1024;
 

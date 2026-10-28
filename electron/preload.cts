@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  appName: "Screenshot App",
+  appName: "Snapmark",
   getPlatform: () => ipcRenderer.invoke("get-platform"),
   getScreenSources: () => ipcRenderer.invoke("get-screen-sources"),
   saveScreenshot: (dataUrl: string) =>

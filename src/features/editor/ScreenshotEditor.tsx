@@ -246,7 +246,7 @@ const ScreenshotEditor = ({
       if (result.canceled) return;
 
       toast.success("Screenshot saved successfully.");
-      console.log("Screenshot saved:", result.filePath);
+      // console.log("Screenshot saved:", result.filePath);
     } catch (error) {
       console.error("Failed to save screenshot:", error);
       toast.error("Could not save the screenshot.");
