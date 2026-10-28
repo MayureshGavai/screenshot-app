@@ -1,6 +1,5 @@
 import { ArrowRight, Command, Crosshair, Sparkles } from "lucide-react";
 
-import Button from "../../../components/ui/Button";
 import CapturePreview from "./CapturePreview";
 
 type LandingHeroProps = {
@@ -28,10 +27,11 @@ export default function LandingHero({ onStartCapture }: LandingHeroProps) {
         </p>
 
         <div className="hero-actions">
-          <Button onClick={onStartCapture} icon={<Crosshair size={17} />}>
+          <button className="primary-button" onClick={onStartCapture}>
+            <Crosshair size={17} />
             Start capture
             <ArrowRight size={16} />
-          </Button>
+          </button>
 
           <div className="shortcut-hint">
             <Command size={14} />

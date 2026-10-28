@@ -1,4 +1,4 @@
-import { Check, Crop, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import EditorToolButton from "./EditorToolButton";
 
 type CropToolbarProps = {

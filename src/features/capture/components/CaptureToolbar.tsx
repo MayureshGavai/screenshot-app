@@ -500,6 +500,11 @@ const CaptureToolbar = () => {
             </div>
           )}
 
+          {cropError && (
+            <div className="capture-overlay__error" role="alert">
+              {cropError}
+            </div>
+          )}
           <section
             className="capture-toolbar"
             aria-label="Screenshot capture toolbar"

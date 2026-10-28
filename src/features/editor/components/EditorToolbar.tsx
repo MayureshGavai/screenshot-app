@@ -1,6 +1,5 @@
 import {
   ArrowUpRight,
-  ChevronDown,
   Circle,
   Copy,
   Crop,

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Monitor } from "lucide-react";
 
 import LandingHeader from "./components/LandingHeader";
 import LandingHero from "./components/LandingHero";

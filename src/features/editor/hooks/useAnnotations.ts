@@ -18,8 +18,6 @@ type AnnotationItem =
   | { kind: "circle"; value: AnnotationCircle }
   | { kind: "text"; value: AnnotationText };
 
-type EditableAnnotationKind = "arrow" | "rectangle" | "circle" | "text";
-
 type ShapeTool = "rectangle" | "circle";
 
 type AnnotationShape = AnnotationRectangle | AnnotationCircle;

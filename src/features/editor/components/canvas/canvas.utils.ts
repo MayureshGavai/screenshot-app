@@ -132,11 +132,7 @@ export const isPointInsideCircle = (point: Point, circle: AnnotationCircle) => {
   return ((point.x - cx) / rx) ** 2 + ((point.y - cy) / ry) ** 2 <= 1;
 };
 
-export const isPointInsideText = (
-  point: Point,
-  annotation: AnnotationText,
-  bounds?: TextBounds,
-) => {
+export const isPointInsideText = (point: Point, bounds?: TextBounds) => {
   if (!bounds) return false;
 
   return (
@@ -159,7 +155,7 @@ export const findAnnotationAtPoint = (
   for (const text of [...texts].reverse()) {
     const bounds = textBounds.get(text.id);
 
-    if (isPointInsideText(point, text, bounds)) {
+    if (isPointInsideText(point, bounds)) {
       return { kind: "text", id: text.id };
     }
   }

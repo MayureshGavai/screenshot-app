@@ -1,18 +1,8 @@
-import {
-  Check,
-  Clipboard,
-  Copy,
-  MousePointer2,
-  Pencil,
-  Save,
-  X,
-} from "lucide-react";
 import { useEffect, useState } from "react";
 import type { EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
 import { toast } from "sonner";
 import { useAnnotations } from "./hooks/useAnnotations";
-import EditorOptions from "./components/EditorOptions";
 import ScreenshotCanvas from "./components/ScreenshotCanvas";
 import type { CropRect } from "./components/canvas/canvas.types";
 import CropToolbar from "./components/CropToolbar";

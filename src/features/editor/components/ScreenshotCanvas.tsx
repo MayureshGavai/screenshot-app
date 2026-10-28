@@ -33,7 +33,6 @@ import {
   distanceToSegment,
   findAnnotationAtPoint,
   findAnnotationsIntersectingEraser,
-  getShapeBounds,
   isPointInsideCircle,
   isPointInsideRectangle,
   isPointInsideText,
@@ -594,7 +593,7 @@ const ScreenshotCanvas = ({
           selectedText &&
           isPointInsideText(
             point,
-            selectedText,
+
             textBoundsRef.current.get(selectedText.id),
           )
         ) {

@@ -1,9 +1,3 @@
-import {
-  ClipboardCheck,
-  Crop,
-  PencilRuler,
-  type LucideIcon,
-} from "lucide-react";
 import { workflowSteps } from "../../../constants/workflowSteps";
 
 export default function WorkflowSteps() {
