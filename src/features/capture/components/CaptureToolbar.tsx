@@ -347,10 +347,8 @@ const CaptureToolbar = () => {
   };
 
   const getConfirmButtonPosition = (currentSelection: Selection) => {
-    const bounds = overlayRef.current?.getBoundingClientRect();
-
-    const overlayWidth = bounds?.width ?? window.innerWidth;
-    const overlayHeight = bounds?.height ?? window.innerHeight;
+    const overlayWidth = window.innerWidth;
+    const overlayHeight = window.innerHeight;
 
     const buttonSize = 36;
     const gap = 8;

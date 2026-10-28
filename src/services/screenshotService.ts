@@ -16,7 +16,8 @@ export const captureScreen = async (sourceId: string): Promise<string> => {
       },
     });
     const video = document.createElement("video");
-    ((video.muted = true), (video.srcObject = stream));
+    video.muted = true;
+    video.srcObject = stream;
 
     await new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { EditorTool } from "./types/editor.types";
 import EditorToolbar from "./components/EditorToolbar";
 import { toast } from "sonner";
@@ -6,6 +6,86 @@ import { useAnnotations } from "./hooks/useAnnotations";
 import ScreenshotCanvas from "./components/ScreenshotCanvas";
 import type { CropRect } from "./components/canvas/canvas.types";
 import CropToolbar from "./components/CropToolbar";
+
+const createExportImage = async (
+  currentScreenshot: string,
+): Promise<string> => {
+  const image = new Image();
+  image.src = currentScreenshot;
+
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Failed to load screenshot."));
+  });
+
+  const sourceSvg = document.querySelector<SVGSVGElement>(
+    '[aria-label="Screenshot annotation canvas"]',
+  );
+
+  if (!sourceSvg) {
+    throw new Error("Annotation canvas not found.");
+  }
+
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+
+  // Create a clean SVG containing only actual annotations.
+  const exportSvg = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg",
+  );
+
+  exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  exportSvg.setAttribute("width", String(width));
+  exportSvg.setAttribute("height", String(height));
+  exportSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  sourceSvg
+    .querySelectorAll('[data-export="annotation"]')
+    .forEach((annotation) => {
+      const clone = annotation.cloneNode(true) as SVGElement;
+
+      clone
+        .querySelectorAll("[data-editor-only]")
+        .forEach((element) => element.remove());
+
+      exportSvg.appendChild(clone);
+    });
+
+  const svgBlob = new Blob([new XMLSerializer().serializeToString(exportSvg)], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const annotationImage = new Image();
+    annotationImage.src = svgUrl;
+
+    await new Promise<void>((resolve, reject) => {
+      annotationImage.onload = () => resolve();
+      annotationImage.onerror = () =>
+        reject(new Error("Failed to render annotations."));
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Could not create export canvas.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+    context.drawImage(annotationImage, 0, 0, width, height);
+
+    return canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+};
 
 type ScreenshotEditorProps = {
   screenshot: string;
@@ -48,10 +128,6 @@ const ScreenshotEditor = ({
   const [textFontWeight, setTextFontWeight] = useState<"normal" | "bold">(
     "normal",
   );
-
-  useEffect(() => {
-    setCurrentScreenshot(screenshot);
-  }, [screenshot]);
 
   const {
     strokes,
@@ -141,7 +217,7 @@ const ScreenshotEditor = ({
     setIsCopying(true);
 
     try {
-      const exportImage = await createExportImage();
+      const exportImage = await createExportImage(currentScreenshot);
       const response = await fetch(exportImage);
       const blob = await response.blob();
 
@@ -162,88 +238,9 @@ const ScreenshotEditor = ({
     }
   };
 
-  const createExportImage = async (): Promise<string> => {
-    const image = new Image();
-    image.src = currentScreenshot;
-
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Failed to load screenshot."));
-    });
-
-    const sourceSvg = document.querySelector<SVGSVGElement>(
-      '[aria-label="Screenshot annotation canvas"]',
-    );
-
-    if (!sourceSvg) {
-      throw new Error("Annotation canvas not found.");
-    }
-
-    const width = image.naturalWidth;
-    const height = image.naturalHeight;
-
-    // Create a clean SVG containing only actual annotations.
-    const exportSvg = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "svg",
-    );
-
-    exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    exportSvg.setAttribute("width", String(width));
-    exportSvg.setAttribute("height", String(height));
-    exportSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-    sourceSvg
-      .querySelectorAll('[data-export="annotation"]')
-      .forEach((annotation) => {
-        const clone = annotation.cloneNode(true) as SVGElement;
-
-        clone
-          .querySelectorAll("[data-editor-only]")
-          .forEach((element) => element.remove());
-
-        exportSvg.appendChild(clone);
-      });
-
-    const svgBlob = new Blob(
-      [new XMLSerializer().serializeToString(exportSvg)],
-      { type: "image/svg+xml;charset=utf-8" },
-    );
-
-    const svgUrl = URL.createObjectURL(svgBlob);
-
+  const handleDownload = useCallback(async () => {
     try {
-      const annotationImage = new Image();
-      annotationImage.src = svgUrl;
-
-      await new Promise<void>((resolve, reject) => {
-        annotationImage.onload = () => resolve();
-        annotationImage.onerror = () =>
-          reject(new Error("Failed to render annotations."));
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-
-      const context = canvas.getContext("2d");
-
-      if (!context) {
-        throw new Error("Could not create export canvas.");
-      }
-
-      context.drawImage(image, 0, 0, width, height);
-      context.drawImage(annotationImage, 0, 0, width, height);
-
-      return canvas.toDataURL("image/png");
-    } finally {
-      URL.revokeObjectURL(svgUrl);
-    }
-  };
-
-  const handleDownload = async () => {
-    try {
-      const exportImage = await createExportImage();
+      const exportImage = await createExportImage(currentScreenshot);
       const result = await window.electronAPI.saveScreenshot(exportImage);
 
       if (result.canceled) return;
@@ -254,9 +251,9 @@ const ScreenshotEditor = ({
       console.error("Failed to save screenshot:", error);
       toast.error("Could not save the screenshot.");
     }
-  };
+  }, [currentScreenshot]);
 
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (!canUndo) return;
 
     const previousScreenshot = undo(currentScreenshot);
@@ -266,9 +263,9 @@ const ScreenshotEditor = ({
       setCropSelection(null);
       setActiveTool("select");
     }
-  };
+  }, [canUndo, undo, currentScreenshot]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (!canRedo) return;
 
     const nextScreenshot = redo(currentScreenshot);
@@ -278,7 +275,7 @@ const ScreenshotEditor = ({
       setCropSelection(null);
       setActiveTool("select");
     }
-  };
+  }, [canRedo, redo, currentScreenshot]);
 
   const handleFinishText = () => {
     finishText();
@@ -357,7 +354,17 @@ const ScreenshotEditor = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeTool, canUndo, canRedo, currentScreenshot, undo, redo]);
+  }, [
+    activeTool,
+    canUndo,
+    canRedo,
+    currentScreenshot,
+    undo,
+    redo,
+    handleRedo,
+    handleUndo,
+    handleDownload,
+  ]);
 
   return (
     <main className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">

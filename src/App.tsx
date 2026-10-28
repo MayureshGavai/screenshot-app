@@ -48,6 +48,7 @@ const App = () => {
       />
       {screenshot ? (
         <ScreenshotEditor
+          key={screenshot}
           screenshot={screenshot}
           onNewCapture={handleNewCapture}
         />

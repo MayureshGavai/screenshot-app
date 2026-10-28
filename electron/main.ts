@@ -5,7 +5,6 @@ import {
   dialog,
   globalShortcut,
   ipcMain,
-  Menu,
   screen,
 } from "electron";
 import { writeFile } from "node:fs/promises";

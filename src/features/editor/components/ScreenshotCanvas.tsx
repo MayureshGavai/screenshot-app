@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent,
@@ -185,6 +186,10 @@ const ScreenshotCanvas = ({
   const dragOriginRef = useRef<DragOrigin | null>(null);
 
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [renderedImageSize, setRenderedImageSize] = useState({
+    width: 0,
+    height: 0,
+  });
   const [cropRect, setCropRect] = useState<CropRect | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
 
@@ -219,25 +224,46 @@ const ScreenshotCanvas = ({
   );
 
   useEffect(() => {
-    if (activeTool !== "crop" || !imageSize.width || !imageSize.height) {
-      return;
-    }
+    const image = imageRef.current;
 
-    setCropRect({
-      x: 0,
-      y: 0,
-      width: imageSize.width,
-      height: imageSize.height,
-    });
+    if (!image) return;
 
-    cropDragRef.current = null;
-  }, [activeTool, imageSize]);
+    const updateRenderedSize = () => {
+      setRenderedImageSize({
+        width: image.clientWidth,
+        height: image.clientHeight,
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateRenderedSize);
+
+    resizeObserver.observe(image);
+    updateRenderedSize();
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [screenshot]);
+
+  const visibleCropRect = useMemo(
+    () =>
+      cropRect ??
+      (activeTool === "crop" && imageSize.width > 0 && imageSize.height > 0
+        ? {
+            x: 0,
+            y: 0,
+            width: imageSize.width,
+            height: imageSize.height,
+          }
+        : null),
+    [cropRect, activeTool, imageSize.width, imageSize.height],
+  );
 
   useEffect(() => {
     if (activeTool === "crop") {
-      onCropSelectionChange(cropRect);
+      onCropSelectionChange(visibleCropRect);
     }
-  }, [activeTool, cropRect, onCropSelectionChange]);
+  }, [activeTool, visibleCropRect, onCropSelectionChange]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -314,7 +340,7 @@ const ScreenshotCanvas = ({
     if (activeText) {
       textareaRef.current?.focus();
     }
-  }, [activeText?.id]);
+  }, [activeText]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -485,28 +511,28 @@ const ScreenshotCanvas = ({
     event: PointerEvent<SVGSVGElement>,
     point: Point,
   ) => {
-    if (!cropRect) return;
+    if (!visibleCropRect) return;
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
 
-    const handle = getCropHandle(point, cropRect);
+    const handle = getCropHandle(point, visibleCropRect);
 
     if (handle) {
       cropDragRef.current = {
         type: "resize",
         handle,
         startPointer: point,
-        startRect: { ...cropRect },
+        startRect: { ...visibleCropRect },
       };
       return;
     }
 
-    if (isInsideCrop(point, cropRect)) {
+    if (isInsideCrop(point, visibleCropRect)) {
       cropDragRef.current = {
         type: "move",
         startPointer: point,
-        startRect: { ...cropRect },
+        startRect: { ...visibleCropRect },
       };
     }
   };
@@ -941,16 +967,14 @@ const ScreenshotCanvas = ({
     }
   };
 
-  useEffect(() => {
-    if (activeTool !== "select") {
-      setHoveredAnnotation(null);
-      setSelectedAnnotation(null);
-    }
+  const visibleSelectedAnnotation =
+    activeTool === "select" ? selectedAnnotation : null;
 
-    if (activeTool !== "eraser") {
-      setPointerPosition(null);
-    }
-  }, [activeTool]);
+  const visibleHoveredAnnotation =
+    activeTool === "select" ? hoveredAnnotation : null;
+
+  const visiblePointerPosition =
+    activeTool === "eraser" ? pointerPosition : null;
 
   const visibleStrokes = activeStroke ? [...strokes, activeStroke] : strokes;
   const visibleArrows = activeArrow ? [...arrows, activeArrow] : arrows;
@@ -982,14 +1006,14 @@ const ScreenshotCanvas = ({
             preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full touch-none ${
-              activeTool === "eraser"
+              visiblePointerPosition
                 ? "cursor-none"
                 : activeTool === "crop"
                   ? "cursor-move"
                   : isDrawing
                     ? "cursor-crosshair"
                     : activeTool === "select" &&
-                        (hoveredAnnotation !== null ||
+                        (visibleHoveredAnnotation !== null ||
                           selectedAnnotation !== null)
                       ? "cursor-pointer"
                       : "cursor-default"
@@ -1034,8 +1058,8 @@ const ScreenshotCanvas = ({
                 <RectangleShape rectangle={rectangle} />
 
                 {activeTool === "select" &&
-                  selectedAnnotation?.kind === "rectangle" &&
-                  rectangle.id === selectedAnnotation.id && (
+                  visibleSelectedAnnotation?.kind === "rectangle" &&
+                  rectangle.id === visibleSelectedAnnotation.id && (
                     <>
                       <rect
                         data-editor-only="true"
@@ -1074,8 +1098,8 @@ const ScreenshotCanvas = ({
                 <CircleShape circle={circle} />
 
                 {activeTool === "select" &&
-                  selectedAnnotation?.kind === "circle" &&
-                  circle.id === selectedAnnotation.id && (
+                  visibleSelectedAnnotation?.kind === "circle" &&
+                  circle.id === visibleSelectedAnnotation.id && (
                     <>
                       <ellipse
                         data-editor-only="true"
@@ -1114,8 +1138,8 @@ const ScreenshotCanvas = ({
                 <ArrowShape arrow={arrow} />
 
                 {activeTool === "select" &&
-                  selectedAnnotation?.kind === "arrow" &&
-                  arrow.id === selectedAnnotation.id && (
+                  visibleSelectedAnnotation?.kind === "arrow" &&
+                  arrow.id === visibleSelectedAnnotation.id && (
                     <>
                       <line
                         data-editor-only="true"
@@ -1155,8 +1179,8 @@ const ScreenshotCanvas = ({
                 key={annotation.id}
                 annotation={annotation}
                 selected={
-                  selectedAnnotation?.kind === "text" &&
-                  selectedAnnotation.id === annotation.id
+                  visibleSelectedAnnotation?.kind === "text" &&
+                  visibleSelectedAnnotation.id === annotation.id
                 }
                 onBoundsChange={handleTextBoundsChange}
               />
@@ -1176,14 +1200,14 @@ const ScreenshotCanvas = ({
               />
             )}
 
-            {activeTool === "crop" && cropRect && (
+            {activeTool === "crop" && visibleCropRect && (
               <g>
                 {/* Darken the area above the selection */}
                 <rect
                   x={0}
                   y={0}
                   width={imageSize.width}
-                  height={cropRect.y}
+                  height={visibleCropRect.y}
                   fill="black"
                   fillOpacity={0.55}
                   pointerEvents="none"
@@ -1192,9 +1216,13 @@ const ScreenshotCanvas = ({
                 {/* Darken the area below the selection */}
                 <rect
                   x={0}
-                  y={cropRect.y + cropRect.height}
+                  y={visibleCropRect.y + visibleCropRect.height}
                   width={imageSize.width}
-                  height={imageSize.height - cropRect.y - cropRect.height}
+                  height={
+                    imageSize.height -
+                    visibleCropRect.y -
+                    visibleCropRect.height
+                  }
                   fill="black"
                   fillOpacity={0.55}
                   pointerEvents="none"
@@ -1203,9 +1231,9 @@ const ScreenshotCanvas = ({
                 {/* Darken the area left of the selection */}
                 <rect
                   x={0}
-                  y={cropRect.y}
-                  width={cropRect.x}
-                  height={cropRect.height}
+                  y={visibleCropRect.y}
+                  width={visibleCropRect.x}
+                  height={visibleCropRect.height}
                   fill="black"
                   fillOpacity={0.55}
                   pointerEvents="none"
@@ -1213,10 +1241,12 @@ const ScreenshotCanvas = ({
 
                 {/* Darken the area right of the selection */}
                 <rect
-                  x={cropRect.x + cropRect.width}
-                  y={cropRect.y}
-                  width={imageSize.width - cropRect.x - cropRect.width}
-                  height={cropRect.height}
+                  x={visibleCropRect.x + visibleCropRect.width}
+                  y={visibleCropRect.y}
+                  width={
+                    imageSize.width - visibleCropRect.x - visibleCropRect.width
+                  }
+                  height={visibleCropRect.height}
                   fill="black"
                   fillOpacity={0.55}
                   pointerEvents="none"
@@ -1224,10 +1254,10 @@ const ScreenshotCanvas = ({
 
                 {/* Crop selection border */}
                 <rect
-                  x={cropRect.x}
-                  y={cropRect.y}
-                  width={cropRect.width}
-                  height={cropRect.height}
+                  x={visibleCropRect.x}
+                  y={visibleCropRect.y}
+                  width={visibleCropRect.width}
+                  height={visibleCropRect.height}
                   fill="none"
                   stroke="white"
                   strokeWidth={2}
@@ -1236,20 +1266,35 @@ const ScreenshotCanvas = ({
 
                 {/* Eight resize handles */}
                 {[
-                  [cropRect.x, cropRect.y],
-                  [cropRect.x + cropRect.width / 2, cropRect.y],
-                  [cropRect.x + cropRect.width, cropRect.y],
+                  [visibleCropRect.x, visibleCropRect.y],
                   [
-                    cropRect.x + cropRect.width,
-                    cropRect.y + cropRect.height / 2,
+                    visibleCropRect.x + visibleCropRect.width / 2,
+                    visibleCropRect.y,
                   ],
-                  [cropRect.x + cropRect.width, cropRect.y + cropRect.height],
                   [
-                    cropRect.x + cropRect.width / 2,
-                    cropRect.y + cropRect.height,
+                    visibleCropRect.x + visibleCropRect.width,
+                    visibleCropRect.y,
                   ],
-                  [cropRect.x, cropRect.y + cropRect.height],
-                  [cropRect.x, cropRect.y + cropRect.height / 2],
+                  [
+                    visibleCropRect.x + visibleCropRect.width,
+                    visibleCropRect.y + visibleCropRect.height / 2,
+                  ],
+                  [
+                    visibleCropRect.x + visibleCropRect.width,
+                    visibleCropRect.y + visibleCropRect.height,
+                  ],
+                  [
+                    visibleCropRect.x + visibleCropRect.width / 2,
+                    visibleCropRect.y + visibleCropRect.height,
+                  ],
+                  [
+                    visibleCropRect.x,
+                    visibleCropRect.y + visibleCropRect.height,
+                  ],
+                  [
+                    visibleCropRect.x,
+                    visibleCropRect.y + visibleCropRect.height / 2,
+                  ],
                 ].map(([x, y], index) => (
                   <rect
                     key={`crop-handle-${index}`}
@@ -1267,58 +1312,59 @@ const ScreenshotCanvas = ({
             )}
           </svg>
         )}
-        {activeText && imageRef.current && (
-          <textarea
-            ref={textareaRef}
-            autoFocus
-            value={activeText.text}
-            onChange={(event) =>
-              onUpdateActiveText({ text: event.target.value })
-            }
-            onBlur={onFinishText}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-
-              if (event.key === "Escape") {
-                event.preventDefault();
-                onCancelText();
+        {activeText &&
+          renderedImageSize.width > 0 &&
+          renderedImageSize.height > 0 && (
+            <textarea
+              ref={textareaRef}
+              autoFocus
+              value={activeText.text}
+              onChange={(event) =>
+                onUpdateActiveText({ text: event.target.value })
               }
+              onBlur={onFinishText}
+              onKeyDown={(event) => {
+                event.stopPropagation();
 
-              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault();
-                event.currentTarget.blur();
-              }
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            placeholder="Type something..."
-            style={{
-              position: "absolute",
-              left:
-                activeText.x * (imageRef.current.clientWidth / imageSize.width),
-              top:
-                activeText.y *
-                (imageRef.current.clientHeight / imageSize.height),
-              width:
-                activeText.width *
-                (imageRef.current.clientWidth / imageSize.width),
-              minHeight: 50,
-              color: activeText.color,
-              fontSize:
-                activeText.fontSize *
-                (imageRef.current.clientHeight / imageSize.height),
-              fontWeight: activeText.fontWeight,
-              fontFamily: "Inter, sans-serif",
-              resize: "both",
-              overflow: "hidden",
-              background: "transparent",
-              border: "1px dashed currentColor",
-              outline: "none",
-              padding: 2,
-              zIndex: 10,
-            }}
-            className="leading-tight"
-          />
-        )}
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  onCancelText();
+                }
+
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              placeholder="Type something..."
+              style={{
+                position: "absolute",
+                left:
+                  activeText.x * (renderedImageSize.width / imageSize.width),
+                top:
+                  activeText.y * (renderedImageSize.height / imageSize.height),
+                width:
+                  activeText.width *
+                  (renderedImageSize.width / imageSize.width),
+                minHeight: 50,
+                color: activeText.color,
+                fontSize:
+                  activeText.fontSize *
+                  (renderedImageSize.height / imageSize.height),
+                fontWeight: activeText.fontWeight,
+                fontFamily: "Inter, sans-serif",
+                resize: "both",
+                overflow: "hidden",
+                background: "transparent",
+                border: "1px dashed currentColor",
+                outline: "none",
+                padding: 2,
+                zIndex: 10,
+              }}
+              className="leading-tight"
+            />
+          )}
       </div>
     </section>
   );
