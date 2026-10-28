@@ -974,7 +974,7 @@ const ScreenshotCanvas = ({
               height: event.currentTarget.naturalHeight,
             });
           }}
-          className="block h-auto max-h-full max-w-full object-none"
+          className="block h-auto w-auto max-h-full max-w-full object-contain"
         />
 
         {imageSize.width > 0 && imageSize.height > 0 && (
