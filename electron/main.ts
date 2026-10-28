@@ -64,6 +64,10 @@ const createWindow = async (): Promise<void> => {
   const window = new BrowserWindow({
     width: 1200,
     height: 900,
+    minWidth: 900,
+    minHeight: 600,
+    maxWidth: 1200,
+    maxHeight: 900,
 
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -166,9 +170,11 @@ const createToolbarWindow = async (): Promise<void> => {
       await window.loadURL(`${DEV_SERVER_URL}/?window=capture-toolbar`);
     }
 
-    toolbarWindow.webContents.openDevTools({
-      mode: "detach",
-    });
+    if (!app.isPackaged) {
+      toolbarWindow.webContents.openDevTools({
+        mode: "detach",
+      });
+    }
 
     if (!window.isDestroyed()) {
       window.show();
@@ -241,47 +247,7 @@ const captureDesktopSnapshot = async (): Promise<string> => {
   return source.thumbnail.toDataURL();
 };
 
-ipcMain.handle("get-platform", (event) => {
-  assertTrustedIpcSender(event);
-  return platform;
-});
-
-ipcMain.handle("get-screen-sources", async (event) => {
-  assertTrustedIpcSender(event);
-  const sources = await desktopCapturer.getSources({
-    types: ["screen", "window"],
-    thumbnailSize: {
-      width: 150,
-      height: 150,
-    },
-  });
-
-  return sources.map((source) => ({
-    id: source.id,
-    name: source.name,
-    thumbnail: source.thumbnail.toDataURL(),
-  }));
-});
-
-ipcMain.handle("get-desktop-source-id", async (event) => {
-  const sources = await desktopCapturer.getSources({
-    types: ["screen"],
-  });
-
-  const primaryScreenSource = sources.find(
-    (source) => /^entire screen$/i.test(source.name.trim()) ?? sources[0],
-  );
-
-  if (!primaryScreenSource) {
-    throw new Error("No screen source was found");
-  }
-
-  return primaryScreenSource.id;
-});
-
-ipcMain.handle("save-screenshot", async (event, dataUrl: unknown) => {
-  assertTrustedIpcSender(event);
-
+const validatePngDataUrl = (dataUrl: unknown): Buffer => {
   if (typeof dataUrl !== "string") {
     throw new Error("Invalid screenshot data");
   }
@@ -309,7 +275,6 @@ ipcMain.handle("save-screenshot", async (event, dataUrl: unknown) => {
     throw new Error("Invalid or oversized PNG data");
   }
 
-  // PNG files begin with these eight signature bytes.
   const pngSignature = Buffer.from([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
   ]);
@@ -320,6 +285,36 @@ ipcMain.handle("save-screenshot", async (event, dataUrl: unknown) => {
   ) {
     throw new Error("The supplied data is not a valid PNG file");
   }
+
+  return imageBuffer;
+};
+
+ipcMain.handle("get-platform", (event) => {
+  assertTrustedIpcSender(event);
+  return platform;
+});
+
+ipcMain.handle("get-screen-sources", async (event) => {
+  assertTrustedIpcSender(event);
+  const sources = await desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: {
+      width: 150,
+      height: 150,
+    },
+  });
+
+  return sources.map((source) => ({
+    id: source.id,
+    name: source.name,
+    thumbnail: source.thumbnail.toDataURL(),
+  }));
+});
+
+ipcMain.handle("save-screenshot", async (event, dataUrl: unknown) => {
+  assertTrustedIpcSender(event);
+
+  const imageBuffer = validatePngDataUrl(dataUrl);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
@@ -399,13 +394,7 @@ ipcMain.handle("open-screenshot-editor", (event, dataUrl: unknown) => {
     throw new Error("Only the capture toolbar can submit a screenshot");
   }
 
-  if (
-    typeof dataUrl !== "string" ||
-    !dataUrl.startsWith("data:image/png;base64,") ||
-    dataUrl.length > Math.ceil((MAX_PNG_BYTES * 4) / 3) + 100
-  ) {
-    throw new Error("Invalid or oversized screenshot");
-  }
+  validatePngDataUrl(dataUrl);
 
   if (!mainWindow || mainWindow.isDestroyed()) {
     throw new Error("Application window is unavailable");
@@ -413,15 +402,12 @@ ipcMain.handle("open-screenshot-editor", (event, dataUrl: unknown) => {
 
   const editorWindow = mainWindow;
 
-  // Clear the capture session and close the full-screen overlay.
   captureSnapshot = null;
   senderWindow.close();
 
-  // Show the normal Electron application window.
   editorWindow.show();
   editorWindow.focus();
 
-  // Deliver the generated screenshot to the React application.
   editorWindow.webContents.send("screenshot-ready", dataUrl);
 
   return { success: true };
@@ -481,9 +467,7 @@ app.whenReady().then(async () => {
   });
 
   app.on("will-quit", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
-    }
+    globalShortcut.unregisterAll();
   });
 });
 

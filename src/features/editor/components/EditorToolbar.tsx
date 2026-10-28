@@ -212,7 +212,7 @@ const EditorToolbar = ({
   return (
     <header
       ref={toolbarRef}
-      className="relative z-30 flex h-16 min-h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3"
+      className="relative z-30 flex h-16 min-h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card mt-2 px-3"
     >
       {/* Left: New capture */}
       <div className="flex h-13 shrink-0 items-start">

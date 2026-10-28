@@ -12,7 +12,6 @@ declare global {
           thumbnail: string;
         }[]
       >;
-      getDesktopSourceId: () => Promise<string>;
       saveScreenshot: (
         dataUrl: string,
       ) => Promise<{ canceled: true } | { canceled: false; filePath: string }>;

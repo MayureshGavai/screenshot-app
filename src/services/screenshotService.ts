@@ -5,8 +5,6 @@ export const captureScreen = async (sourceId: string): Promise<string> => {
   try {
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
 
-    // const sourceId = await window.electronAPI.getDesktopSourceId();
-
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
