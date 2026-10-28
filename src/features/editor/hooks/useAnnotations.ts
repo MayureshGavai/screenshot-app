@@ -429,14 +429,26 @@ export const useAnnotations = () => {
           (item) =>
             item.kind === "arrow" ||
             item.kind === "rectangle" ||
-            item.kind === "circle",
+            item.kind === "circle" ||
+            item.kind === "text",
         )
-        .map((item) => ({
-          kind: item.kind,
-          id: item.value.id,
-          start: item.value.start,
-          end: item.value.end,
-        }));
+        .map((item) => {
+          if (item.kind === "text") {
+            return {
+              kind: item.kind,
+              id: item.value.id,
+              x: item.value.x,
+              y: item.value.y,
+            };
+          }
+
+          return {
+            kind: item.kind,
+            id: item.value.id,
+            start: item.value.start,
+            end: item.value.end,
+          };
+        });
 
     const changed =
       JSON.stringify(getEditableGeometry(originalHistory)) !==

@@ -45,12 +45,6 @@ const App = () => {
         closeButton
         duration={2500}
         theme="system"
-        // classNames={{
-        //   toast: "border border-border bg-card text-foreground shadow-lg",
-        //   title: "text-foreground",
-        //   description: "text-muted-foreground",
-        //   closeButton: "border-border bg-background text-foreground",
-        // }}
       />
       {screenshot ? (
         <ScreenshotEditor

@@ -36,16 +36,6 @@ export default function LandingPage() {
         <LandingHero onStartCapture={handleStartCapture} />
 
         <WorkflowSteps />
-
-        <footer className="app-footer">
-          <span>Made for a clearer workflow.</span>
-
-          <span className="status-indicator">
-            <span />
-            <Monitor size={13} />
-            Desktop workspace
-          </span>
-        </footer>
       </div>
     </main>
   );

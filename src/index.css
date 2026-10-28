@@ -454,29 +454,6 @@ kbd {
   line-height: 1.75;
 }
 
-.app-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 26px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.status-indicator span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-}
-
 .notice {
   margin-top: 16px;
   padding: 12px 14px;
@@ -562,10 +539,6 @@ kbd {
     width: 34px;
     height: 34px;
   }
-
-  .app-footer {
-    margin-top: 16px;
-  }
 }
 
 /* Prefer a compact layout on short desktop windows */
@@ -605,10 +578,6 @@ kbd {
 
   .workflow-card {
     padding: 10px;
-  }
-
-  .app-footer {
-    margin-top: 10px;
   }
 }
 
@@ -651,11 +620,6 @@ kbd {
   }
 
   .hero-actions {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .app-footer {
     align-items: flex-start;
     flex-direction: column;
   }

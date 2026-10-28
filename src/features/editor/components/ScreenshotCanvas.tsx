@@ -373,19 +373,21 @@ const ScreenshotCanvas = ({
 
   const getPoint = (event: PointerEvent<SVGSVGElement>): Point | null => {
     const image = imageRef.current;
+    const svg = event.currentTarget;
 
     if (!image || !imageSize.width || !imageSize.height) return null;
 
-    const bounds = event.currentTarget.getBoundingClientRect();
+    const bounds = svg.getBoundingClientRect();
 
     if (!bounds.width || !bounds.height) return null;
 
-    return {
+    const point = {
       x: ((event.clientX - bounds.left) / bounds.width) * imageSize.width,
       y: ((event.clientY - bounds.top) / bounds.height) * imageSize.height,
     };
-  };
 
+    return point;
+  };
   const handleAnnotationHover = (point: Point) => {
     const hitAnnotation = findAnnotationAtPoint(
       point,
@@ -588,7 +590,14 @@ const ScreenshotCanvas = ({
           (item) => item.id === selectedAnnotation.id,
         );
 
-        if (selectedText && isPointInsideText(point, selectedText)) {
+        if (
+          selectedText &&
+          isPointInsideText(
+            point,
+            selectedText,
+            textBoundsRef.current.get(selectedText.id),
+          )
+        ) {
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
 
@@ -775,6 +784,7 @@ const ScreenshotCanvas = ({
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const point = getPoint(event);
+
     if (!point) return;
 
     cursorPositionRef.current = point;
@@ -964,13 +974,13 @@ const ScreenshotCanvas = ({
               height: event.currentTarget.naturalHeight,
             });
           }}
-          className="block h-auto w-auto max-h-full max-w-full select-none"
+          className="block h-auto max-h-full max-w-full object-none"
         />
 
         {imageSize.width > 0 && imageSize.height > 0 && (
           <svg
             viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio="none"
             aria-label="Screenshot annotation canvas"
             className={`absolute inset-0 h-full w-full touch-none ${
               activeTool === "eraser"
